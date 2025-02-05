@@ -1,16 +1,20 @@
 pub mod block;
+use std::str::FromStr;
+
 pub use block::{Block, Header, Transaction};
+use primitive_types::U256;
+use uint::FromStrRadixErr;
 
 #[derive(Debug)]
 pub struct Blockchain {
     pub blocks: Vec<Block>,
-    pub difficulty: u32,
+    pub difficulty: U256,
     pub target_duration_between_blocks: u64,
     latest_block_timestamp: u64,
 }
 
 impl Blockchain {
-    pub fn create_blockchain(difficulty: u32, target_duration_between_blocks: u64) -> Self {
+    pub fn create_blockchain(difficulty: U256, target_duration_between_blocks: u64) -> Self {
         Self {
             blocks: Vec::new(),
             difficulty,
@@ -40,27 +44,41 @@ impl Blockchain {
             if block.header.prev_hash != latest_block.header.hash {
                 return;
             }
-            let block_hash: u32 = block.header.hash.parse::<u32>().unwrap();
-            if block_hash > self.difficulty {
-                return;
+            let block_hash: Result<U256, FromStrRadixErr> =
+                U256::from_str_radix(&block.header.hash, 16);
+
+            match block_hash {
+                Ok(hash) => {
+                    let difficulty_variation = U256::from_str("60000").unwrap();
+                    if hash > self.difficulty {
+                        return;
+                    }
+                    if block.header.timestamp - latest_block.header.timestamp
+                        > self.target_duration_between_blocks + 2
+                        && self.difficulty < U256::MAX
+                    {
+                        self.difficulty += difficulty_variation;
+                    } else if block.header.timestamp - latest_block.header.timestamp
+                        < self.target_duration_between_blocks - 2
+                    {
+                        self.difficulty -= difficulty_variation;
+                    }
+                    let hash = Block::hash_header(&block.header);
+                    block.header.hash = hash;
+                    self.latest_block_timestamp = block.header.timestamp;
+                    self.blocks.push(block);
+                }
+                Err(err) => {
+                    print!(
+                        "Error: cannot parse block hash {}: encountered {}",
+                        block.header.hash, err
+                    )
+                }
             }
-            if block.header.timestamp - latest_block.header.timestamp
-                > self.target_duration_between_blocks + 1000
-            {
-                self.target_duration_between_blocks -= 60000;
-            } else if block.header.timestamp - latest_block.header.timestamp
-                < self.target_duration_between_blocks - 1000
-            {
-                self.target_duration_between_blocks += 60000;
-            }
-            let hash = Block::hash_header(&block.header);
-            block.header.hash = hash;
-            self.latest_block_timestamp = block.header.timestamp;
-            self.blocks.push(block);
         }
     }
 
-    pub fn set_difficulty(&mut self, new_difficulty: u32) {
+    pub fn set_difficulty(&mut self, new_difficulty: U256) {
         self.difficulty = new_difficulty;
     }
 }

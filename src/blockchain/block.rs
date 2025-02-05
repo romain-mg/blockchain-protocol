@@ -69,21 +69,9 @@ impl Block {
 
 #[derive(Debug)]
 pub struct MerkleNode {
-    left: Option<Box<MerkleNode>>,
-    right: Option<Box<MerkleNode>>,
+    pub left: Option<Box<MerkleNode>>,
+    pub right: Option<Box<MerkleNode>>,
     pub value: String,
-    content: String,
-}
-
-impl Clone for MerkleNode {
-    fn clone(&self) -> Self {
-        Self {
-            left: self.left.clone(),
-            right: self.right.clone(),
-            value: self.value.clone(),
-            content: self.content.clone(),
-        }
-    }
 }
 
 impl MerkleNode {
@@ -98,7 +86,7 @@ impl MerkleNode {
 
 #[derive(Debug)]
 pub struct MerkleTree {
-    root: Option<Box<MerkleNode>>,
+    pub root: Option<Box<MerkleNode>>,
 }
 
 impl MerkleTree {
@@ -119,47 +107,55 @@ impl MerkleTree {
         let mut concat_transaction = String::from(&transaction.address_from);
         concat_transaction.push_str(&transaction.address_to);
         concat_transaction.push_str(&transaction.amount.to_string());
-        if index * 2 >= transactions_count {
+
+        let left_child_index;
+        let right_child_index;
+
+        if index == 0 {
+            left_child_index = 1;
+            right_child_index = 2;
+        } else {
+            left_child_index = index * 2 + 1;
+            right_child_index = index * 2 + 2;
+        }
+        if left_child_index >= transactions_count {
             return Some(Box::new(MerkleNode {
                 left: None,
                 right: None,
                 value: digest(&concat_transaction),
-                content: concat_transaction,
             }));
         } else {
-            let left_index: usize = index * 2;
-            let right_index: usize = index * 2 + 1;
-            let mut left_node: Option<Box<MerkleNode>> = None;
+            let left_node: Option<Box<MerkleNode>> = self._build_tree_helper(
+                &transactions[left_child_index],
+                left_child_index,
+                transactions,
+            );
+
             let mut right_node: Option<Box<MerkleNode>> = None;
 
-            if left_index < transactions_count {
-                left_node =
-                    self._build_tree_helper(&transactions[left_index], left_index, transactions);
+            if right_child_index < transactions_count {
+                right_node = self._build_tree_helper(
+                    &transactions[right_child_index],
+                    right_child_index,
+                    transactions,
+                );
             }
 
-            if right_index < transactions_count {
-                right_node =
-                    self._build_tree_helper(&transactions[right_index], right_index, transactions);
-            }
-
-            let mut node_value = String::from("");
-            let mut node_content = String::from("");
+            let mut child_hashes: String = String::from("");
 
             if let Some(ref left) = left_node {
-                node_value.push_str(&left.value);
-                node_content.push_str(&left.content);
-            }
-
-            if let Some(ref right) = right_node {
-                node_value.push_str(&right.value);
-                node_content.push_str(&right.content);
+                child_hashes.push_str(&left.value);
+                if let Some(ref right) = right_node {
+                    child_hashes.push_str(&right.value);
+                } else {
+                    child_hashes.push_str(&left.value);
+                }
             }
 
             Some(Box::new(MerkleNode {
                 left: left_node,
                 right: right_node,
-                value: digest(node_value),
-                content: node_content,
+                value: digest(child_hashes),
             }))
         }
     }
