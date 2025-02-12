@@ -1,12 +1,13 @@
 pub mod account;
 pub mod block;
-use std::{collections::HashMap, convert::TryFrom, str::FromStr};
+pub mod utils;
+
+use std::{collections::HashMap, str::FromStr};
 
 pub use account::Account;
 pub use block::{Block, Header, Transaction};
-use k256::ecdsa::{Signature, SigningKey, VerifyingKey};
+use k256::ecdsa::VerifyingKey;
 use primitive_types::U256;
-use rand::rngs::OsRng;
 use uint::FromStrRadixErr;
 
 #[derive(Debug)]
@@ -103,8 +104,7 @@ impl Blockchain {
         *self.accounts.get(public_key_bytes).unwrap_or(&U256::zero())
     }
 
-    pub fn create_account(&mut self, private_key: SigningKey) -> VerifyingKey {
-        let public_key = VerifyingKey::from(&private_key);
+    pub fn create_account(&mut self, public_key: VerifyingKey) -> VerifyingKey {
         let encoded_public_key = public_key.to_encoded_point(true);
         let public_key_bytes: [u8; 33] = encoded_public_key
             .as_bytes()

@@ -1,10 +1,9 @@
-pub mod account;
 pub mod blockchain;
 pub mod miner;
 
-use crate::blockchain::Blockchain;
+use crate::blockchain::{account, Blockchain};
 use crate::miner::Miner;
-
+use k256::ecdsa::Signature;
 use miner::Transaction;
 use primitive_types::U256;
 
@@ -19,16 +18,20 @@ fn main() {
         max_transactions_per_block,
     );
     let mut miner: Miner = Miner {
-        blockchain: &mut blockchain,
         mempool: Vec::new(),
     };
 
+    let mut account = account::Account::new();
+    blockchain.create_account(account.get_public_key());
+
     let transaction: Transaction = Transaction {
-        public_key_from: String::from("public_key_from"),
-        public_key_to: String::from("public_key_to"),
+        public_key_from: account.get_public_key(),
+        public_key_to: account.get_public_key(),
         amount: 1,
         fee: 1,
     };
+
+    let signature: Signature = account.sign_transaction(&transaction);
     let transactions: Vec<Transaction> = vec![
         transaction.clone(),
         transaction.clone(),
@@ -45,11 +48,11 @@ fn main() {
     ];
 
     for transaction in transactions {
-        miner.add_tx_to_mempool(transaction);
+        miner.add_transaction_to_mempool(transaction, &signature);
     }
 
     for _n in 0..3 {
-        miner.compute_next_block();
+        miner.compute_next_block(&mut blockchain);
     }
 
     if let Some(block) = blockchain.get_block(0) {

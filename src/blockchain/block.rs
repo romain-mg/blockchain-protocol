@@ -1,4 +1,5 @@
-use k256::ecdsa::Signature;
+use super::utils::concat_transaction;
+use k256::ecdsa::VerifyingKey;
 use sha256::digest;
 
 #[derive(Debug)]
@@ -18,11 +19,10 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub struct Transaction {
-    pub public_key_from: String,
-    pub public_key_to: String,
+    pub public_key_from: VerifyingKey,
+    pub public_key_to: VerifyingKey,
     pub amount: u32,
     pub fee: u32,
-    pub signature: Signature,
 }
 
 impl Block {
@@ -107,9 +107,7 @@ impl MerkleTree {
         transactions: &Vec<Transaction>,
     ) -> Option<Box<MerkleNode>> {
         let transactions_count: usize = transactions.len();
-        let mut concat_transaction = String::from(&transaction.public_key_from);
-        concat_transaction.push_str(&transaction.public_key_to);
-        concat_transaction.push_str(&transaction.amount.to_string());
+        let concat_transaction = concat_transaction(transaction);
 
         let left_child_index;
         let right_child_index;

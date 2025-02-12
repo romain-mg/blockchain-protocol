@@ -1,3 +1,0 @@
-- Implement wallets and mempool + cryptocurrency reward 
-- Implement digital singatures (shouldnt be too complicated)
-- Implement consensus

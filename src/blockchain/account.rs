@@ -1,6 +1,7 @@
 pub use crate::blockchain::{
     self,
     block::{self, Block, Header, Transaction},
+    utils::hash_transaction,
     Blockchain,
 };
 use k256::ecdsa::{signature::SignerMut, Signature, SigningKey, VerifyingKey};
@@ -17,17 +18,21 @@ impl Account {
         blockchain.get_balance(&self.public_key)
     }
 
-    pub fn sign_transaction(&mut self, transaction_hash: &[u8]) -> Signature {
-        self.private_key.sign(transaction_hash)
+    pub fn sign_transaction(&mut self, transaction: &Transaction) -> Signature {
+        let transaction_hash = hash_transaction(transaction);
+        self.private_key.sign(transaction_hash.as_bytes())
     }
 
-    pub fn new(blockchain: &mut Blockchain) -> Self {
+    pub fn new() -> Self {
         let private_key = SigningKey::random(&mut OsRng);
         let public_key = VerifyingKey::from(&private_key);
-        blockchain.create_account(private_key.clone());
         Self {
             private_key,
             public_key,
         }
+    }
+
+    pub fn get_public_key(&self) -> VerifyingKey {
+        self.public_key
     }
 }
