@@ -1,3 +1,4 @@
+use k256::ecdsa::Signature;
 use sha256::digest;
 
 #[derive(Debug)]
@@ -17,9 +18,11 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub struct Transaction {
-    pub address_from: String,
-    pub address_to: String,
+    pub public_key_from: String,
+    pub public_key_to: String,
     pub amount: u32,
+    pub fee: u32,
+    pub signature: Signature,
 }
 
 impl Block {
@@ -27,7 +30,7 @@ impl Block {
         nonce: u64,
         timestamp: u64,
         prev_hash: String,
-        transactions: Vec<Transaction>,
+        transactions: &Vec<Transaction>,
     ) -> Self {
         let mut merkle_tree: MerkleTree = MerkleTree { root: None };
         merkle_tree.build_tree(transactions);
@@ -90,7 +93,7 @@ pub struct MerkleTree {
 }
 
 impl MerkleTree {
-    pub fn build_tree(&mut self, transactions: Vec<Transaction>) {
+    pub fn build_tree(&mut self, transactions: &Vec<Transaction>) {
         if transactions.len() == 0 {
             return;
         }
@@ -104,8 +107,8 @@ impl MerkleTree {
         transactions: &Vec<Transaction>,
     ) -> Option<Box<MerkleNode>> {
         let transactions_count: usize = transactions.len();
-        let mut concat_transaction = String::from(&transaction.address_from);
-        concat_transaction.push_str(&transaction.address_to);
+        let mut concat_transaction = String::from(&transaction.public_key_from);
+        concat_transaction.push_str(&transaction.public_key_to);
         concat_transaction.push_str(&transaction.amount.to_string());
 
         let left_child_index;
