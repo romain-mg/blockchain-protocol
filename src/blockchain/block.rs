@@ -1,4 +1,4 @@
-use super::utils::concat_transaction;
+use super::utils::serialize_transaction;
 use k256::ecdsa::VerifyingKey;
 use sha256::digest;
 
@@ -6,7 +6,6 @@ use sha256::digest;
 pub struct Header {
     pub nonce: u64,
     pub timestamp: u64,
-    pub hash: String,
     pub prev_hash: String,
     pub merkle_root: String,
 }
@@ -14,7 +13,7 @@ pub struct Header {
 #[derive(Debug)]
 pub struct Block {
     pub header: Header,
-    pub transactions: MerkleTree,
+    pub transactions: Vec<Transaction>,
 }
 
 #[derive(Debug, Clone)]
@@ -23,6 +22,7 @@ pub struct Transaction {
     pub public_key_to: VerifyingKey,
     pub amount: u32,
     pub fee: u32,
+    pub nonce: u128,
 }
 
 impl Block {
@@ -32,8 +32,7 @@ impl Block {
         prev_hash: String,
         transactions: &Vec<Transaction>,
     ) -> Self {
-        let mut merkle_tree: MerkleTree = MerkleTree { root: None };
-        merkle_tree.build_tree(transactions);
+        let merkle_tree = MerkleTree::build_tree(transactions);
 
         let mut block_merkle_root = String::from("");
 
@@ -42,19 +41,16 @@ impl Block {
             block_merkle_root.push_str(root_hash);
         }
 
-        let mut header = Header {
+        let header = Header {
             nonce,
             timestamp,
-            hash: String::from(""),
             prev_hash,
             merkle_root: block_merkle_root,
         };
 
-        header.hash = Block::hash_header(&header);
-
         Self {
             header,
-            transactions: merkle_tree,
+            transactions: transactions.clone(),
         }
     }
 
@@ -70,7 +66,7 @@ impl Block {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MerkleNode {
     pub left: Option<Box<MerkleNode>>,
     pub right: Option<Box<MerkleNode>>,
@@ -93,71 +89,51 @@ pub struct MerkleTree {
 }
 
 impl MerkleTree {
-    pub fn build_tree(&mut self, transactions: &Vec<Transaction>) {
-        if transactions.len() == 0 {
-            return;
+    pub fn build_tree(transactions: &Vec<Transaction>) -> Self {
+        if transactions.is_empty() {
+            return Self { root: None };
         }
-        self.root = self._build_tree_helper(&transactions[0], 0, &transactions);
-    }
-
-    fn _build_tree_helper(
-        &self,
-        transaction: &Transaction,
-        index: usize,
-        transactions: &Vec<Transaction>,
-    ) -> Option<Box<MerkleNode>> {
-        let transactions_count: usize = transactions.len();
-        let concat_transaction = concat_transaction(transaction);
-
-        let left_child_index;
-        let right_child_index;
-
-        if index == 0 {
-            left_child_index = 1;
-            right_child_index = 2;
-        } else {
-            left_child_index = index * 2 + 1;
-            right_child_index = index * 2 + 2;
-        }
-        if left_child_index >= transactions_count {
-            return Some(Box::new(MerkleNode {
+        let mut nodes: Vec<MerkleNode> = transactions
+            .iter()
+            .map(|tx| MerkleNode {
                 left: None,
                 right: None,
-                value: digest(&concat_transaction),
-            }));
-        } else {
-            let left_node: Option<Box<MerkleNode>> = self._build_tree_helper(
-                &transactions[left_child_index],
-                left_child_index,
-                transactions,
-            );
+                value: digest(&serialize_transaction(tx)),
+            })
+            .collect();
 
-            let mut right_node: Option<Box<MerkleNode>> = None;
-
-            if right_child_index < transactions_count {
-                right_node = self._build_tree_helper(
-                    &transactions[right_child_index],
-                    right_child_index,
-                    transactions,
-                );
-            }
-
-            let mut child_hashes: String = String::from("");
-
-            if let Some(ref left) = left_node {
-                child_hashes.push_str(&left.value);
-                if let Some(ref right) = right_node {
-                    child_hashes.push_str(&right.value);
+        while nodes.len() > 1 {
+            let mut next_level: Vec<MerkleNode> = Vec::new();
+            let mut i = 0;
+            while i < nodes.len() {
+                let left = nodes[i].clone();
+                let right = if i + 1 < nodes.len() {
+                    nodes[i + 1].clone()
                 } else {
-                    child_hashes.push_str(&left.value);
-                }
+                    left.clone()
+                };
+                let combined_hash = digest(&(left.value.clone() + &right.value));
+                let parent = MerkleNode {
+                    left: Some(Box::new(left)),
+                    right: Some(Box::new(right)),
+                    value: combined_hash,
+                };
+                next_level.push(parent);
+                i += 2;
             }
+            nodes = next_level;
+        }
 
-            Some(Box::new(MerkleNode {
-                left: left_node,
-                right: right_node,
-                value: digest(child_hashes),
-            }))
+        Self {
+            root: Some(Box::new(nodes[0].clone())),
+        }
+    }
+
+    pub fn get_root(&self) -> Option<String> {
+        if let Some(ref root) = self.root {
+            Some(root.value.clone())
+        } else {
+            None
         }
     }
 }

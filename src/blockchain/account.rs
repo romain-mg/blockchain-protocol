@@ -11,10 +11,11 @@ use rand::rngs::OsRng;
 pub struct Account {
     public_key: VerifyingKey,
     private_key: SigningKey,
+    nonce: u128,
 }
 
 impl Account {
-    pub fn get_balance(&self, blockchain: &Blockchain) -> U256 {
+    pub fn get_balance(&self, blockchain: &mut Blockchain) -> U256 {
         blockchain.get_balance(&self.public_key)
     }
 
@@ -29,6 +30,7 @@ impl Account {
         Self {
             private_key,
             public_key,
+            nonce: 0,
         }
     }
 

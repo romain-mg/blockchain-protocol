@@ -1,11 +1,12 @@
 pub use super::block::Transaction;
+use k256::ecdsa::VerifyingKey;
 use sha256::digest;
 
 pub fn hash_transaction(transaction: &Transaction) -> String {
-    digest(concat_transaction(transaction))
+    digest(serialize_transaction(transaction))
 }
 
-pub fn concat_transaction(transaction: &Transaction) -> String {
+pub fn serialize_transaction(transaction: &Transaction) -> String {
     let public_key_from_string = transaction
         .public_key_from
         .to_encoded_point(true)
@@ -15,4 +16,12 @@ pub fn concat_transaction(transaction: &Transaction) -> String {
         + &public_key_to_string
         + &transaction.amount.to_string()
         + &transaction.fee.to_string()
+}
+
+pub fn convert_public_key_to_bytes(public_key: &VerifyingKey) -> [u8; 33] {
+    let encoded_public_key = public_key.to_encoded_point(true);
+    encoded_public_key
+        .as_bytes()
+        .try_into()
+        .expect("Public key should be 33 bytes")
 }

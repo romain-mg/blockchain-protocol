@@ -5,10 +5,12 @@ pub mod utils;
 use std::{collections::HashMap, str::FromStr};
 
 pub use account::Account;
+use block::MerkleTree;
 pub use block::{Block, Header, Transaction};
 use k256::ecdsa::VerifyingKey;
 use primitive_types::U256;
 use uint::FromStrRadixErr;
+use utils::convert_public_key_to_bytes;
 
 #[derive(Debug)]
 pub struct Blockchain {
@@ -17,7 +19,13 @@ pub struct Blockchain {
     pub target_duration_between_blocks: u64,
     pub latest_block_timestamp: u64,
     pub max_transactions_per_block: usize,
-    pub accounts: HashMap<[u8; 33], U256>,
+    pub accounts: HashMap<[u8; 33], AccountState>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AccountState {
+    pub balance: U256,
+    pub nonce: u128,
 }
 
 impl Blockchain {
@@ -48,19 +56,44 @@ impl Blockchain {
         self.blocks.get(latest_index)
     }
 
-    pub fn add_block(&mut self, mut block: Block) -> bool {
+    pub fn add_block(&mut self, block: Block) -> bool {
+        for transaction in block.transactions.iter() {
+            let public_key = &transaction.public_key_from;
+
+            let account = self
+                .accounts
+                .get_mut(&convert_public_key_to_bytes(public_key));
+            if account.is_none() {
+                return false;
+            }
+            let account_state = account.unwrap();
+            if transaction.nonce != account_state.nonce {
+                return false;
+            }
+            account_state.nonce += 1;
+        }
+
+        let block_merkle_root = &block.header.merkle_root;
+        let recomputed_merkle_root = &MerkleTree::build_tree(&block.transactions.clone())
+            .root
+            .unwrap()
+            .value;
+        if block_merkle_root != recomputed_merkle_root {
+            return false;
+        }
         let blocks_length: usize = self.blocks.len();
         if blocks_length == 0 {
             self.blocks.push(block);
         } else if self.blocks.len() > 0 {
             let latest_block: &Block = &self.blocks[blocks_length - 1];
-            if block.header.prev_hash != latest_block.header.hash {
+            if block.header.prev_hash != Block::hash_header(&latest_block.header) {
                 return false;
             }
-            let block_hash: Result<U256, FromStrRadixErr> =
-                U256::from_str_radix(&block.header.hash, 16);
+            let block_hash = Block::hash_header(&block.header);
+            let block_hash_u256: Result<U256, FromStrRadixErr> =
+                U256::from_str_radix(&block_hash, 16);
 
-            match block_hash {
+            match block_hash_u256 {
                 Ok(hash) => {
                     let difficulty_variation = U256::from_str("60000").unwrap();
                     if hash > self.difficulty {
@@ -76,8 +109,6 @@ impl Blockchain {
                     {
                         self.difficulty -= difficulty_variation;
                     }
-                    let hash = Block::hash_header(&block.header);
-                    block.header.hash = hash;
                     self.latest_block_timestamp = block.header.timestamp;
                     self.blocks.push(block);
                     return true;
@@ -85,7 +116,7 @@ impl Blockchain {
                 Err(err) => {
                     print!(
                         "Error: cannot parse block hash {}: encountered {}",
-                        block.header.hash, err
+                        block_hash, err
                     );
                     return false;
                 }
@@ -98,19 +129,29 @@ impl Blockchain {
         self.difficulty = new_difficulty;
     }
 
-    pub fn get_balance(&self, account: &VerifyingKey) -> U256 {
-        let encoded_public_key = account.to_encoded_point(true);
+    pub fn get_account(&self, public_key: &VerifyingKey) -> Option<&AccountState> {
+        let encoded_public_key = public_key.to_encoded_point(true);
         let public_key_bytes = encoded_public_key.as_bytes();
-        *self.accounts.get(public_key_bytes).unwrap_or(&U256::zero())
+        self.accounts.get(public_key_bytes)
     }
 
-    pub fn create_account(&mut self, public_key: VerifyingKey) -> VerifyingKey {
-        let encoded_public_key = public_key.to_encoded_point(true);
-        let public_key_bytes: [u8; 33] = encoded_public_key
-            .as_bytes()
-            .try_into()
-            .expect("Public key should be 33 bytes");
-        self.accounts.insert(public_key_bytes, U256::zero());
-        public_key
+    pub fn get_balance(&mut self, public_key: &VerifyingKey) -> U256 {
+        let account = self.get_account(public_key);
+        if account.is_some() {
+            account.unwrap().balance
+        } else {
+            let new_account = self.create_account(public_key.clone());
+            new_account.balance
+        }
+    }
+
+    pub fn create_account(&mut self, public_key: VerifyingKey) -> &AccountState {
+        let public_key_bytes = convert_public_key_to_bytes(&public_key);
+        let new_account: AccountState = AccountState {
+            balance: U256::zero(),
+            nonce: 0,
+        };
+        self.accounts.insert(public_key_bytes, new_account);
+        &self.accounts[&public_key_bytes]
     }
 }
