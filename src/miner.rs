@@ -26,16 +26,21 @@ impl Miner {
         {
             return;
         }
+
         let public_key = &transaction.public_key_from;
         let mut account = blockchain.get_account(public_key);
         if account.is_none() {
-            blockchain.create_account(public_key.clone());
+            blockchain.create_account(&public_key);
             account = blockchain.get_account(public_key);
         }
-        let unwraped_account = account.unwrap();
+        let unwraped_account = account.expect("Account not existing");
         if transaction.nonce < unwraped_account.nonce {
             return;
         }
+        if unwraped_account.balance < transaction.amount {
+            return;
+        }
+
         let mut idx: usize = 0;
         for mempool_transaction in self.mempool.iter() {
             if mempool_transaction.fee < transaction.fee {
@@ -64,11 +69,14 @@ impl Miner {
             let processed_txn = &transactions_copy[i];
             let public_key_bytes = &convert_public_key_to_bytes(&processed_txn.public_key_from);
             let processed_txn_account = temp_account_state.get_mut(public_key_bytes).unwrap();
-            if processed_txn.nonce != processed_txn_account.nonce {
+            if processed_txn.nonce != processed_txn_account.nonce
+                || processed_txn_account.balance < processed_txn.amount
+            {
                 transactions_copy.remove(i);
             } else {
                 i += 1;
                 processed_txn_account.nonce += 1;
+                processed_txn_account.balance -= processed_txn.amount;
             }
         }
 

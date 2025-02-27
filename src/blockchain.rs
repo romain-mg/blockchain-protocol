@@ -4,7 +4,7 @@ pub mod utils;
 
 use std::{collections::HashMap, str::FromStr};
 
-pub use account::Account;
+pub use account::AccountKeys;
 use block::MerkleTree;
 pub use block::{Block, Header, Transaction};
 use k256::ecdsa::VerifyingKey;
@@ -57,22 +57,6 @@ impl Blockchain {
     }
 
     pub fn add_block(&mut self, block: Block) -> bool {
-        for transaction in block.transactions.iter() {
-            let public_key = &transaction.public_key_from;
-
-            let account = self
-                .accounts
-                .get_mut(&convert_public_key_to_bytes(public_key));
-            if account.is_none() {
-                return false;
-            }
-            let account_state = account.unwrap();
-            if transaction.nonce != account_state.nonce {
-                return false;
-            }
-            account_state.nonce += 1;
-        }
-
         let block_merkle_root = &block.header.merkle_root;
         let recomputed_merkle_root = &MerkleTree::build_tree(&block.transactions.clone())
             .root
@@ -109,6 +93,38 @@ impl Blockchain {
                     {
                         self.difficulty -= difficulty_variation;
                     }
+
+                    for transaction in block.transactions.iter() {
+                        let sender_public_key = &transaction.public_key_from;
+                        let sender_account = self
+                            .accounts
+                            .get_mut(&convert_public_key_to_bytes(sender_public_key));
+                        if sender_account.is_none() {
+                            return false;
+                        }
+                        let sender_account_state =
+                            sender_account.expect("Sender account does not exist");
+                        if transaction.nonce != sender_account_state.nonce {
+                            return false;
+                        }
+                        if sender_account_state.balance < transaction.amount {
+                            return false;
+                        }
+                        sender_account_state.balance -= transaction.amount;
+                        sender_account_state.nonce += 1;
+
+                        let receiver_public_key = &transaction.public_key_to;
+                        let receiver_account = self
+                            .accounts
+                            .get_mut(&convert_public_key_to_bytes(receiver_public_key));
+                        if receiver_account.is_none() {
+                            return false;
+                        }
+                        let receiver_account_state =
+                            receiver_account.expect("Sender account does not exist");
+                        receiver_account_state.balance += transaction.amount;
+                    }
+
                     self.latest_block_timestamp = block.header.timestamp;
                     self.blocks.push(block);
                     return true;
@@ -140,18 +156,25 @@ impl Blockchain {
         if account.is_some() {
             account.unwrap().balance
         } else {
-            let new_account = self.create_account(public_key.clone());
+            let new_account = self.create_account(public_key);
             new_account.balance
         }
     }
 
-    pub fn create_account(&mut self, public_key: VerifyingKey) -> &AccountState {
-        let public_key_bytes = convert_public_key_to_bytes(&public_key);
+    pub fn create_account(&mut self, public_key: &VerifyingKey) -> &AccountState {
+        let public_key_bytes = convert_public_key_to_bytes(public_key);
         let new_account: AccountState = AccountState {
             balance: U256::zero(),
             nonce: 0,
         };
         self.accounts.insert(public_key_bytes, new_account);
         &self.accounts[&public_key_bytes]
+    }
+
+    pub fn mint(&mut self, public_key: &VerifyingKey, amount: U256) {
+        let _account = self
+            .accounts
+            .get_mut(&convert_public_key_to_bytes(public_key));
+        _account.expect("Account does not exist").balance += amount;
     }
 }

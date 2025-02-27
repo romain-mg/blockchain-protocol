@@ -1,5 +1,6 @@
 use super::utils::serialize_transaction;
 use k256::ecdsa::VerifyingKey;
+use primitive_types::U256;
 use sha256::digest;
 
 #[derive(Debug)]
@@ -20,8 +21,8 @@ pub struct Block {
 pub struct Transaction {
     pub public_key_from: VerifyingKey,
     pub public_key_to: VerifyingKey,
-    pub amount: u32,
-    pub fee: u32,
+    pub amount: U256,
+    pub fee: U256,
     pub nonce: u128,
 }
 

@@ -8,13 +8,12 @@ use k256::ecdsa::{signature::SignerMut, Signature, SigningKey, VerifyingKey};
 use primitive_types::U256;
 use rand::rngs::OsRng;
 
-pub struct Account {
+pub struct AccountKeys {
     public_key: VerifyingKey,
     private_key: SigningKey,
-    nonce: u128,
 }
 
-impl Account {
+impl AccountKeys {
     pub fn get_balance(&self, blockchain: &mut Blockchain) -> U256 {
         blockchain.get_balance(&self.public_key)
     }
@@ -30,7 +29,6 @@ impl Account {
         Self {
             private_key,
             public_key,
-            nonce: 0,
         }
     }
 

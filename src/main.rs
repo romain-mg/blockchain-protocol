@@ -21,38 +21,45 @@ fn main() {
         mempool: Vec::new(),
     };
 
-    let mut account = account::Account::new();
-    blockchain.create_account(account.get_public_key());
+    let mut sender_account = account::AccountKeys::new();
+    let sender_account_public_key = sender_account.get_public_key();
+    blockchain.create_account(&sender_account_public_key);
+
+    let receiver_account = account::AccountKeys::new();
+    let receiver_account_public_key = receiver_account.get_public_key();
+    blockchain.create_account(&receiver_account_public_key);
+
+    blockchain.mint(&sender_account_public_key, U256::from(1));
 
     let transaction_0: Transaction = Transaction {
-        public_key_from: account.get_public_key(),
-        public_key_to: account.get_public_key(),
-        amount: 1,
-        fee: 1,
+        public_key_from: sender_account_public_key,
+        public_key_to: receiver_account_public_key,
+        amount: U256::from(1),
+        fee: U256::from(1),
         nonce: 0,
     };
 
-    let signature_0: Signature = account.sign_transaction(&transaction_0);
+    let signature_0: Signature = sender_account.sign_transaction(&transaction_0);
 
     let transaction_1: Transaction = Transaction {
-        public_key_from: account.get_public_key(),
-        public_key_to: account.get_public_key(),
-        amount: 1,
-        fee: 1,
+        public_key_from: sender_account_public_key,
+        public_key_to: receiver_account_public_key,
+        amount: U256::from(1),
+        fee: U256::from(1),
         nonce: 1,
     };
 
-    let signature_1: Signature = account.sign_transaction(&transaction_1);
+    let signature_1: Signature = sender_account.sign_transaction(&transaction_1);
 
     let transaction_2: Transaction = Transaction {
-        public_key_from: account.get_public_key(),
-        public_key_to: account.get_public_key(),
-        amount: 1,
-        fee: 1,
+        public_key_from: sender_account_public_key,
+        public_key_to: receiver_account_public_key,
+        amount: U256::from(1),
+        fee: U256::from(1),
         nonce: 2,
     };
 
-    let signature_2: Signature = account.sign_transaction(&transaction_2);
+    let signature_2: Signature = sender_account.sign_transaction(&transaction_2);
 
     miner.add_transaction_to_mempool(transaction_0, &signature_0, &mut blockchain);
     miner.add_transaction_to_mempool(transaction_1, &signature_1, &mut blockchain);
