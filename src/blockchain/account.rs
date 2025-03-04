@@ -9,7 +9,7 @@ use primitive_types::U256;
 use rand::rngs::OsRng;
 
 pub struct AccountKeys {
-    public_key: VerifyingKey,
+    pub public_key: VerifyingKey,
     private_key: SigningKey,
 }
 

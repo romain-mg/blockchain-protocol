@@ -1,5 +1,6 @@
 pub use crate::blockchain::{
     self,
+    account::AccountKeys,
     block::{self, Block, Header, Transaction},
     utils::{convert_public_key_to_bytes, hash_transaction},
     Blockchain,
@@ -10,6 +11,7 @@ use std::time::SystemTime;
 
 pub struct Miner {
     pub mempool: Vec<Transaction>,
+    pub account_keys: AccountKeys,
 }
 
 impl Miner {
@@ -37,13 +39,13 @@ impl Miner {
         if transaction.nonce < unwraped_account.nonce {
             return;
         }
-        if unwraped_account.balance < transaction.amount {
+        if unwraped_account.balance < transaction.amount + transaction.fee {
             return;
         }
 
         let mut idx: usize = 0;
         for mempool_transaction in self.mempool.iter() {
-            if mempool_transaction.fee < transaction.fee {
+            if mempool_transaction.fee > transaction.fee {
                 idx += 1;
             }
         }
@@ -68,15 +70,15 @@ impl Miner {
         while i < transactions_copy.len() {
             let processed_txn = &transactions_copy[i];
             let public_key_bytes = &convert_public_key_to_bytes(&processed_txn.public_key_from);
-            let processed_txn_account = temp_account_state.get_mut(public_key_bytes).unwrap();
-            if processed_txn.nonce != processed_txn_account.nonce
-                || processed_txn_account.balance < processed_txn.amount
+            let processed_txn_sender = temp_account_state.get_mut(public_key_bytes).unwrap();
+            if processed_txn.nonce != processed_txn_sender.nonce
+                || processed_txn_sender.balance < processed_txn.amount + processed_txn.fee
             {
                 transactions_copy.remove(i);
             } else {
                 i += 1;
-                processed_txn_account.nonce += 1;
-                processed_txn_account.balance -= processed_txn.amount;
+                processed_txn_sender.nonce += 1;
+                processed_txn_sender.balance -= processed_txn.amount + processed_txn.fee;
             }
         }
 
@@ -90,7 +92,7 @@ impl Miner {
 
         let block: Block =
             self._compute_next_block(transactions_copy, latest_block_hash, &blockchain);
-        if blockchain.add_block(block) {
+        if blockchain.add_block(block, &self.account_keys.get_public_key()) {
             if self.mempool.len() > transaction_count {
                 self.mempool = self.mempool[transaction_count..].to_vec();
             } else {
@@ -127,5 +129,14 @@ impl Miner {
             block.header.timestamp = timestamp;
         }
         block
+    }
+
+    pub fn new(blockchain: &mut Blockchain) -> Self {
+        let miner = Miner {
+            mempool: Vec::new(),
+            account_keys: AccountKeys::new(),
+        };
+        blockchain.create_account(&miner.account_keys.get_public_key());
+        miner
     }
 }

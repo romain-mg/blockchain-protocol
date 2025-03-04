@@ -17,9 +17,8 @@ fn main() {
         target_duration_between_blocks,
         max_transactions_per_block,
     );
-    let mut miner: Miner = Miner {
-        mempool: Vec::new(),
-    };
+
+    let mut miner: Miner = Miner::new(&mut blockchain);
 
     let mut sender_account = account::AccountKeys::new();
     let sender_account_public_key = sender_account.get_public_key();
@@ -29,7 +28,7 @@ fn main() {
     let receiver_account_public_key = receiver_account.get_public_key();
     blockchain.create_account(&receiver_account_public_key);
 
-    blockchain.mint(&sender_account_public_key, U256::from(1));
+    blockchain.mint(&sender_account_public_key, U256::from(1000));
 
     let transaction_0: Transaction = Transaction {
         public_key_from: sender_account_public_key,
@@ -73,4 +72,17 @@ fn main() {
         let txns = &block.transactions;
         println!("{txns:?}");
     }
+
+    println!(
+        "Sender balance: {}",
+        blockchain.get_balance(&sender_account_public_key)
+    );
+    println!(
+        "Receiver balance: {}",
+        blockchain.get_balance(&receiver_account_public_key)
+    );
+    println!(
+        "Miner balance: {}",
+        blockchain.get_balance(&miner.account_keys.get_public_key())
+    );
 }

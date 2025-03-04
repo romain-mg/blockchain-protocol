@@ -20,6 +20,7 @@ pub struct Blockchain {
     pub latest_block_timestamp: u64,
     pub max_transactions_per_block: usize,
     pub accounts: HashMap<[u8; 33], AccountState>,
+    pub mining_reward: U256,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +42,7 @@ impl Blockchain {
             latest_block_timestamp: 0,
             max_transactions_per_block,
             accounts: HashMap::new(),
+            mining_reward: U256::from(1000),
         }
     }
 
@@ -56,19 +58,17 @@ impl Blockchain {
         self.blocks.get(latest_index)
     }
 
-    pub fn add_block(&mut self, block: Block) -> bool {
+    pub fn add_block(&mut self, block: Block, miner_public_key: &VerifyingKey) -> bool {
         let block_merkle_root = &block.header.merkle_root;
         let recomputed_merkle_root = &MerkleTree::build_tree(&block.transactions.clone())
             .root
-            .unwrap()
+            .expect("Blockchain cannot add block: Merkle root is None")
             .value;
         if block_merkle_root != recomputed_merkle_root {
             return false;
         }
         let blocks_length: usize = self.blocks.len();
-        if blocks_length == 0 {
-            self.blocks.push(block);
-        } else if self.blocks.len() > 0 {
+        if blocks_length > 0 {
             let latest_block: &Block = &self.blocks[blocks_length - 1];
             if block.header.prev_hash != Block::hash_header(&latest_block.header) {
                 return false;
@@ -93,44 +93,9 @@ impl Blockchain {
                     {
                         self.difficulty -= difficulty_variation;
                     }
-
-                    for transaction in block.transactions.iter() {
-                        let sender_public_key = &transaction.public_key_from;
-                        let sender_account = self
-                            .accounts
-                            .get_mut(&convert_public_key_to_bytes(sender_public_key));
-                        if sender_account.is_none() {
-                            return false;
-                        }
-                        let sender_account_state =
-                            sender_account.expect("Sender account does not exist");
-                        if transaction.nonce != sender_account_state.nonce {
-                            return false;
-                        }
-                        if sender_account_state.balance < transaction.amount {
-                            return false;
-                        }
-                        sender_account_state.balance -= transaction.amount;
-                        sender_account_state.nonce += 1;
-
-                        let receiver_public_key = &transaction.public_key_to;
-                        let receiver_account = self
-                            .accounts
-                            .get_mut(&convert_public_key_to_bytes(receiver_public_key));
-                        if receiver_account.is_none() {
-                            return false;
-                        }
-                        let receiver_account_state =
-                            receiver_account.expect("Sender account does not exist");
-                        receiver_account_state.balance += transaction.amount;
-                    }
-
-                    self.latest_block_timestamp = block.header.timestamp;
-                    self.blocks.push(block);
-                    return true;
                 }
                 Err(err) => {
-                    print!(
+                    println!(
                         "Error: cannot parse block hash {}: encountered {}",
                         block_hash, err
                     );
@@ -138,7 +103,49 @@ impl Blockchain {
                 }
             }
         }
-        return false;
+
+        let mut temp_miner_account_state = self
+            .get_account(miner_public_key)
+            .expect("Miner account does not exist")
+            .clone();
+        for transaction in block.transactions.iter() {
+            println!("Transaction: {:?}", transaction);
+            let sender_public_key = &transaction.public_key_from;
+            let sender_account = self
+                .accounts
+                .get_mut(&convert_public_key_to_bytes(sender_public_key));
+            if sender_account.is_none() {
+                return false;
+            }
+            let sender_account_state = sender_account.expect("Sender account does not exist");
+            if transaction.nonce != sender_account_state.nonce {
+                return false;
+            }
+            if sender_account_state.balance < transaction.amount + transaction.fee {
+                return false;
+            }
+            sender_account_state.balance -= transaction.amount + transaction.fee;
+            sender_account_state.nonce += 1;
+
+            let receiver_public_key = &transaction.public_key_to;
+            let receiver_account = self
+                .accounts
+                .get_mut(&convert_public_key_to_bytes(receiver_public_key));
+            if receiver_account.is_none() {
+                return false;
+            }
+            let receiver_account_state = receiver_account.expect("Sender account does not exist");
+            receiver_account_state.balance += transaction.amount;
+            temp_miner_account_state.balance += transaction.fee;
+        }
+        let miner_account = self
+            .accounts
+            .get_mut(&convert_public_key_to_bytes(miner_public_key))
+            .unwrap();
+        miner_account.balance = temp_miner_account_state.balance + self.mining_reward;
+        self.latest_block_timestamp = block.header.timestamp;
+        self.blocks.push(block);
+        return true;
     }
 
     pub fn set_difficulty(&mut self, new_difficulty: U256) {
