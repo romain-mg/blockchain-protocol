@@ -84,7 +84,9 @@ impl Miner {
 
         let transaction_count = transactions_copy.len();
 
-        let latest_block_hash = if let Some(block) = blockchain.get_latest_block() {
+        let latest_block_hash = if let Some(block) =
+            blockchain.get_block(&blockchain.current_longest_chain_latest_block_hash)
+        {
             Block::hash_header(&block.header)
         } else {
             String::new()
@@ -92,7 +94,7 @@ impl Miner {
 
         let block: Block =
             self._compute_next_block(transactions_copy, latest_block_hash, &blockchain);
-        if blockchain.add_block(block, &self.account_keys.get_public_key()) {
+        if blockchain.add_block(block, self.account_keys.get_public_key()) {
             if self.mempool.len() > transaction_count {
                 self.mempool = self.mempool[transaction_count..].to_vec();
             } else {

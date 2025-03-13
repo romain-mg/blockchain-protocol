@@ -10,3 +10,4 @@ rustc-hex = "2.1.0"
 uint = "0.10.0"
 k256 = "0.13.4"
 rand = "0.8.5"   # ✅ Use rand 0.8 (compatible with k256)
+multimap = "0.10.0"

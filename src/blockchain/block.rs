@@ -3,15 +3,16 @@ use k256::ecdsa::VerifyingKey;
 use primitive_types::U256;
 use sha256::digest;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Header {
     pub nonce: u64,
     pub timestamp: u64,
     pub prev_hash: String,
+    pub difficulty: U256,
     pub merkle_root: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     pub header: Header,
     pub transactions: Vec<Transaction>,
@@ -46,6 +47,7 @@ impl Block {
             nonce,
             timestamp,
             prev_hash,
+            difficulty: U256::zero(),
             merkle_root: block_merkle_root,
         };
 

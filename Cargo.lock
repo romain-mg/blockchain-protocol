@@ -87,6 +87,7 @@ name = "blockchain"
 version = "0.1.0"
 dependencies = [
  "k256",
+ "multimap",
  "primitive-types",
  "rand",
  "rustc-hex",
@@ -393,6 +394,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3b1c9bd4fe1f0f8b387f6eb9eb3b4a1aa26185e5750efb9140301703f62cd1b"
 dependencies = [
  "adler2",
+]
+
+[[package]]
+name = "multimap"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
