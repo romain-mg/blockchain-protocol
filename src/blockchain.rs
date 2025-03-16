@@ -2,7 +2,10 @@ pub mod account;
 pub mod block;
 pub mod utils;
 
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 pub use account::AccountKeys;
 use block::MerkleTree;
@@ -18,6 +21,7 @@ pub struct Blockchain {
     pub hash_to_block: HashMap<String, Block>,
     pub hash_to_miner: HashMap<String, VerifyingKey>,
     pub block_parent_map: HashMap<String, String>,
+    pub parent_block_map: HashMap<String, String>,
     pub hash_to_cumulative_difficulty: HashMap<String, U256>,
     pub cumulative_difficulty_to_hash: MultiMap<U256, String>,
     pub difficulty: U256,
@@ -49,6 +53,7 @@ impl Blockchain {
             hash_to_block: HashMap::new(),
             hash_to_miner: HashMap::new(),
             block_parent_map: HashMap::new(),
+            parent_block_map: HashMap::new(),
             hash_to_cumulative_difficulty,
             cumulative_difficulty_to_hash,
             difficulty,
@@ -110,37 +115,39 @@ impl Blockchain {
         }
         self.hash_to_miner
             .insert(block_hash.clone(), miner_public_key.clone());
-        if self.apply_block_transactions(&block_hash) {
-            self.latest_block_timestamp = block.header.timestamp;
-            self.hash_to_block.insert(block_hash.clone(), block.clone());
-            self.block_parent_map
-                .insert(block_hash.clone(), block.header.prev_hash.clone());
+        self.hash_to_block.insert(block_hash.clone(), block.clone());
+        self.block_parent_map
+            .insert(block_hash.clone(), block_prev_hash.clone());
 
-            // Apply the longest chain rule
-            let current_longest_chain_latest_block_hash =
-                self.current_longest_chain_latest_block_hash.clone();
-            let total_block_difficulty = self.hash_to_cumulative_difficulty
-                [&block.header.prev_hash]
-                + block.header.difficulty;
-            if block.header.prev_hash != current_longest_chain_latest_block_hash {
-                let current_longest_chain_latest_block_difficulty = self
-                    .hash_to_cumulative_difficulty
-                    .get(&current_longest_chain_latest_block_hash)
-                    .unwrap();
-                if &total_block_difficulty > current_longest_chain_latest_block_difficulty {
-                    self.reorg_to_new_best_chain(block_hash.clone());
+        // Apply the longest chain rule
+        let current_longest_chain_latest_block_hash =
+            self.current_longest_chain_latest_block_hash.clone();
+        let total_block_difficulty =
+            self.hash_to_cumulative_difficulty[&block_prev_hash.clone()] + block.header.difficulty;
+        if block_prev_hash != &current_longest_chain_latest_block_hash {
+            let current_longest_chain_latest_block_difficulty = self
+                .hash_to_cumulative_difficulty
+                .get(&current_longest_chain_latest_block_hash)
+                .unwrap();
+            if &total_block_difficulty > current_longest_chain_latest_block_difficulty {
+                self.reorg_to_new_longest_chain(block_hash.clone());
+                if self.parent_block_map.contains_key(&block_prev_hash.clone()) {
+                    self.parent_block_map
+                        .insert(block_prev_hash.clone(), block_hash.clone());
                 }
-            } else {
-                self.current_longest_chain_latest_block_hash = block_hash.clone();
             }
-
-            self.hash_to_cumulative_difficulty
-                .insert(block_hash.clone(), total_block_difficulty);
-            self.cumulative_difficulty_to_hash
-                .insert(total_block_difficulty, block_hash.clone());
-            return true;
+        } else {
+            self.current_longest_chain_latest_block_hash = block_hash.clone();
+            self.parent_block_map
+                .insert(block_prev_hash.clone(), block_hash.clone());
+            self.apply_block_transactions(&block_hash);
         }
-        return false;
+
+        self.hash_to_cumulative_difficulty
+            .insert(block_hash.clone(), total_block_difficulty);
+        self.cumulative_difficulty_to_hash
+            .insert(total_block_difficulty, block_hash.clone());
+        return true;
     }
 
     pub fn set_difficulty(&mut self, new_difficulty: U256) {
@@ -180,24 +187,58 @@ impl Blockchain {
         _account.expect("Account does not exist").balance += amount;
     }
 
-    pub fn reorg_to_new_best_chain(&mut self, block_hash: String) {
-        let mut current_latest_block_hash = self.current_longest_chain_latest_block_hash.clone();
-        let mut new_chain_block_hash = block_hash.clone();
-        let mut new_chain_block_hashes = vec![];
-        let mut old_chain_block_hashes = vec![];
-        while current_latest_block_hash != new_chain_block_hash {
-            new_chain_block_hashes.push(new_chain_block_hash.clone());
-            new_chain_block_hash = self.block_parent_map[&new_chain_block_hash].clone();
-            old_chain_block_hashes.push(current_latest_block_hash.clone());
-            current_latest_block_hash = self.block_parent_map[&current_latest_block_hash].clone();
+    pub fn reorg_to_new_longest_chain(&mut self, block_hash: String) {
+        let mut curr_old_chain_block_hash = self.current_longest_chain_latest_block_hash.clone();
+        let mut old_chain_block_hashes: HashSet<String> = HashSet::new();
+        let mut old_chain_block_hashes_vec = vec![];
+        while curr_old_chain_block_hash != String::from("") {
+            old_chain_block_hashes.insert(curr_old_chain_block_hash.clone());
+            old_chain_block_hashes_vec.push(curr_old_chain_block_hash.clone());
+            curr_old_chain_block_hash = self
+                .block_parent_map
+                .get(&curr_old_chain_block_hash)
+                .unwrap()
+                .clone();
         }
-        new_chain_block_hashes.reverse();
-        old_chain_block_hashes.reverse();
-        for old_chain_block_hash in old_chain_block_hashes.iter() {
-            self.revert_block_transactions(old_chain_block_hash);
+        let mut curr_new_chain_block_hash = block_hash.clone();
+        let mut new_chain_block_hashes: HashSet<String> = HashSet::new();
+        let mut new_chain_block_hashes_vec = vec![];
+        while curr_new_chain_block_hash != String::from("") {
+            new_chain_block_hashes.insert(curr_new_chain_block_hash.clone());
+            new_chain_block_hashes_vec.push(curr_new_chain_block_hash.clone());
+            curr_new_chain_block_hash = self
+                .block_parent_map
+                .get(&curr_new_chain_block_hash)
+                .unwrap()
+                .clone();
         }
-        for new_chain_block_hash in new_chain_block_hashes.iter() {
-            self.apply_block_transactions(new_chain_block_hash);
+
+        let fork_hash = old_chain_block_hashes
+            .intersection(&new_chain_block_hashes)
+            .next()
+            .expect("No fork hash found");
+
+        let fork_hash_idx_in_old_block_vec = old_chain_block_hashes_vec
+            .iter()
+            .position(|h| h == fork_hash)
+            .unwrap();
+
+        let old_chain_block_hashes_vec_slice =
+            &old_chain_block_hashes_vec[..fork_hash_idx_in_old_block_vec + 1];
+
+        for old_chain_block_hash in old_chain_block_hashes_vec_slice.iter() {
+            self.revert_block_transactions(&old_chain_block_hash);
+        }
+
+        new_chain_block_hashes_vec.reverse();
+        let fork_hash_idx_in_new_block_vec = new_chain_block_hashes_vec
+            .iter()
+            .position(|h| h == fork_hash)
+            .unwrap();
+        let new_chain_block_hashes_vec_slice =
+            &new_chain_block_hashes_vec[fork_hash_idx_in_new_block_vec..];
+        for new_chain_block_hash in new_chain_block_hashes_vec_slice.iter() {
+            self.apply_block_transactions(&new_chain_block_hash);
         }
     }
 

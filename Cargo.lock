@@ -83,7 +83,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "blockchain"
+name = "blockchain_protocol"
 version = "0.1.0"
 dependencies = [
  "k256",

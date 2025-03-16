@@ -9,6 +9,7 @@ use k256::ecdsa::{signature::Verifier, Signature};
 use primitive_types::U256;
 use std::time::SystemTime;
 
+#[derive(Clone)]
 pub struct Miner {
     pub mempool: Vec<Transaction>,
     pub account_keys: AccountKeys,
@@ -52,7 +53,11 @@ impl Miner {
         self.mempool.insert(idx, transaction);
     }
 
-    pub fn compute_next_block(&mut self, blockchain: &mut Blockchain) {
+    pub fn compute_next_block(
+        &mut self,
+        blockchain: &mut Blockchain,
+        parent_block_hash: String,
+    ) -> Option<String> {
         let max_transaction_count_in_block: usize = blockchain.max_transactions_per_block;
 
         let mut transactions_copy = {
@@ -84,23 +89,17 @@ impl Miner {
 
         let transaction_count = transactions_copy.len();
 
-        let latest_block_hash = if let Some(block) =
-            blockchain.get_block(&blockchain.current_longest_chain_latest_block_hash)
-        {
-            Block::hash_header(&block.header)
-        } else {
-            String::new()
-        };
-
         let block: Block =
-            self._compute_next_block(transactions_copy, latest_block_hash, &blockchain);
-        if blockchain.add_block(block, self.account_keys.get_public_key()) {
+            self._compute_next_block(transactions_copy, parent_block_hash.clone(), &blockchain);
+        if blockchain.add_block(block.clone(), self.account_keys.get_public_key()) {
             if self.mempool.len() > transaction_count {
                 self.mempool = self.mempool[transaction_count..].to_vec();
             } else {
                 self.mempool.clear();
             }
+            return Some(Block::hash_header(&block.header));
         }
+        return None;
     }
 
     fn _compute_next_block(
