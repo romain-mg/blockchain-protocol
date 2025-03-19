@@ -100,10 +100,12 @@ mod tests {
         let difficulty: U256 = U256::MAX / difficulty_divisor;
         let target_duration_between_blocks = 5;
         let max_transactions_per_block = 3;
+        let blocks_between_deifficulty_adjustment = 10;
         let mut blockchain: Blockchain = Blockchain::create_blockchain(
             difficulty,
             target_duration_between_blocks,
             max_transactions_per_block,
+            blocks_between_deifficulty_adjustment,
         );
 
         let miner: Miner = Miner::new(&mut blockchain);

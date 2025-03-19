@@ -31,6 +31,8 @@ pub struct Blockchain {
     pub accounts: HashMap<[u8; 33], AccountState>,
     pub mining_reward: U256,
     pub current_longest_chain_latest_block_hash: String,
+    pub blocks_between_difficulty_adjustment: u64,
+    pub latest_n_block_timestamps: Vec<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +46,7 @@ impl Blockchain {
         difficulty: U256,
         target_duration_between_blocks: u64,
         max_transactions_per_block: usize,
+        blocks_between_difficulty_adjustment: u64,
     ) -> Self {
         let mut hash_to_cumulative_difficulty = HashMap::new();
         let mut cumulative_difficulty_to_hash = MultiMap::new();
@@ -63,6 +66,8 @@ impl Blockchain {
             accounts: HashMap::new(),
             mining_reward: U256::from(1000),
             current_longest_chain_latest_block_hash: String::from(""),
+            blocks_between_difficulty_adjustment,
+            latest_n_block_timestamps: Vec::new(),
         }
     }
 
@@ -86,22 +91,18 @@ impl Blockchain {
         if block.header.prev_hash != "" {
             let block_hash_u256: Result<U256, FromStrRadixErr> =
                 U256::from_str_radix(&block_hash, 16);
-            let parent_block = self.hash_to_block.get(block_prev_hash).unwrap();
             match block_hash_u256 {
                 Ok(hash) => {
-                    let difficulty_variation = U256::from_str("60000").unwrap();
+                    // adjust difficulty
                     if hash > self.difficulty {
                         return false;
                     }
-                    if block.header.timestamp - parent_block.header.timestamp
-                        > self.target_duration_between_blocks + 2
-                        && self.difficulty < U256::MAX
+                    if self.latest_n_block_timestamps.len() as u64
+                        == self.blocks_between_difficulty_adjustment
                     {
-                        self.difficulty += difficulty_variation;
-                    } else if block.header.timestamp - parent_block.header.timestamp
-                        < self.target_duration_between_blocks - 2
-                    {
-                        self.difficulty -= difficulty_variation;
+                        self.adjust_difficulty();
+                    } else {
+                        self.latest_n_block_timestamps.push(block.header.timestamp);
                     }
                 }
                 Err(err) => {
@@ -320,5 +321,21 @@ impl Blockchain {
             .unwrap();
         miner_account.balance = miner_account_balance - self.mining_reward;
         return true;
+    }
+
+    fn adjust_difficulty(&mut self) {
+        let difficulty_variation = self.difficulty * 2 / 100;
+        let mut total_latest_blocks_production_time: u64 = 0;
+        for i in 0..self.latest_n_block_timestamps.len() - 1 {
+            total_latest_blocks_production_time +=
+                self.latest_n_block_timestamps[i + 1] - self.latest_n_block_timestamps[i];
+        }
+        let average_production_time =
+            total_latest_blocks_production_time / (self.blocks_between_difficulty_adjustment - 1);
+        if average_production_time < self.target_duration_between_blocks * 95 / 100 {
+            self.difficulty += difficulty_variation;
+        } else if average_production_time > self.target_duration_between_blocks * 105 / 100 {
+            self.difficulty -= difficulty_variation;
+        }
     }
 }

@@ -7,10 +7,12 @@ fn main() {
     let difficulty: U256 = U256::MAX / difficulty_divisor;
     let target_duration_between_blocks = 5;
     let max_transactions_per_block = 3;
+    let blocks_between_difficulty_adjustment = 10;
     let mut blockchain: Blockchain = Blockchain::create_blockchain(
         difficulty,
         target_duration_between_blocks,
         max_transactions_per_block,
+        blocks_between_difficulty_adjustment,
     );
 
     let mut miner: Miner = Miner::new(&mut blockchain);
