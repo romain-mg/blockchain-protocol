@@ -1,5 +1,6 @@
 use blockchain_protocol::blockchain::{account, Blockchain};
 use blockchain_protocol::miner::{Miner, Transaction};
+use blockchain_protocol::network::Network;
 use k256::ecdsa::Signature;
 use primitive_types::U256;
 fn main() {
@@ -15,7 +16,7 @@ fn main() {
         blocks_between_difficulty_adjustment,
     );
 
-    let mut miner: Miner = Miner::new(&mut blockchain);
+    let mut miner: Miner = Miner::new(&mut blockchain, Network::new());
 
     let mut sender_account = account::AccountKeys::new();
     let sender_account_public_key = sender_account.get_public_key();

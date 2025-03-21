@@ -2,10 +2,7 @@ pub mod account;
 pub mod block;
 pub mod utils;
 
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-};
+use std::collections::{HashMap, HashSet};
 
 pub use account::AccountKeys;
 use block::MerkleTree;
@@ -16,7 +13,7 @@ use primitive_types::U256;
 use uint::FromStrRadixErr;
 use utils::convert_public_key_to_bytes;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Blockchain {
     pub hash_to_block: HashMap<String, Block>,
     pub hash_to_miner: HashMap<String, VerifyingKey>,

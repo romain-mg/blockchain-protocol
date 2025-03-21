@@ -18,7 +18,7 @@ pub struct Block {
     pub transactions: Vec<Transaction>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Transaction {
     pub public_key_from: VerifyingKey,
     pub public_key_to: VerifyingKey,

@@ -1,18 +1,21 @@
 pub use crate::blockchain::{
     self,
     account::AccountKeys,
-    block::{self, Block, Header, Transaction},
+    block::{self, Block, Header, MerkleTree, Transaction},
     utils::{convert_public_key_to_bytes, hash_transaction},
     Blockchain,
 };
+use crate::network::Network;
 use k256::ecdsa::{signature::Verifier, Signature};
 use primitive_types::U256;
 use std::time::SystemTime;
+use uint::FromStrRadixErr;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Miner {
     pub mempool: Vec<Transaction>,
     pub account_keys: AccountKeys,
+    pub network: Network,
 }
 
 impl Miner {
@@ -97,6 +100,8 @@ impl Miner {
             } else {
                 self.mempool.clear();
             }
+            self.network
+                .broadcast_block(self, block.clone(), blockchain);
             return Some(Block::hash_header(&block.header));
         }
         return None;
@@ -132,12 +137,53 @@ impl Miner {
         block
     }
 
-    pub fn new(blockchain: &mut Blockchain) -> Self {
+    pub fn new(blockchain: &mut Blockchain, network: Network) -> Self {
         let miner = Miner {
             mempool: Vec::new(),
             account_keys: AccountKeys::new(),
+            network,
         };
         blockchain.create_account(&miner.account_keys.get_public_key());
         miner
+    }
+
+    pub fn add_block_to_blockchain(&self, block: Block, blockchain: &mut Blockchain) {
+        if !self.validate_block(block.clone(), &blockchain) {
+            return;
+        }
+        blockchain.add_block(block, self.account_keys.get_public_key());
+    }
+
+    fn validate_block(&self, block: Block, blockchain: &Blockchain) -> bool {
+        let block_merkle_root = &block.header.merkle_root;
+        let recomputed_merkle_root = &MerkleTree::build_tree(&block.transactions.clone())
+            .root
+            .expect("Merkle root is None")
+            .value;
+        if block_merkle_root != recomputed_merkle_root {
+            return false;
+        }
+
+        if block.header.prev_hash == "" {
+            return true;
+        }
+
+        let block_hash = Block::hash_header(&block.header);
+        let block_hash_u256: Result<U256, FromStrRadixErr> = U256::from_str_radix(&block_hash, 16);
+        match block_hash_u256 {
+            Ok(hash) => {
+                if hash > blockchain.difficulty {
+                    return false;
+                }
+            }
+            Err(err) => {
+                println!(
+                    "Error: cannot parse block hash {}: encountered {}",
+                    &block_hash, err
+                );
+                return false;
+            }
+        }
+        return true;
     }
 }

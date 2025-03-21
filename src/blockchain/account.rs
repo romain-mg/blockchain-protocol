@@ -8,7 +8,7 @@ use k256::ecdsa::{signature::SignerMut, Signature, SigningKey, VerifyingKey};
 use primitive_types::U256;
 use rand::rngs::OsRng;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct AccountKeys {
     pub public_key: VerifyingKey,
     private_key: SigningKey,
