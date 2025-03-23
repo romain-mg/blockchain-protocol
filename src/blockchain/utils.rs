@@ -3,10 +3,10 @@ use k256::ecdsa::VerifyingKey;
 use sha256::digest;
 
 pub fn hash_transaction(transaction: &Transaction) -> String {
-    digest(serialize_transaction(transaction))
+    digest(convert_transaction_to_string(transaction))
 }
 
-pub fn serialize_transaction(transaction: &Transaction) -> String {
+pub fn convert_transaction_to_string(transaction: &Transaction) -> String {
     let public_key_from_string = transaction
         .public_key_from
         .to_encoded_point(true)

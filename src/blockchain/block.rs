@@ -1,9 +1,10 @@
-use super::utils::serialize_transaction;
+use super::utils::convert_transaction_to_string;
 use k256::ecdsa::VerifyingKey;
 use primitive_types::U256;
+use serde::{Deserialize, Serialize};
 use sha256::digest;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Header {
     pub nonce: u64,
     pub timestamp: u64,
@@ -69,6 +70,19 @@ impl Block {
     }
 }
 
+// impl Serialize for Block {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         let mut block = self.clone();
+//         for transaction in block.transactions.iter() {
+//             transaction = convert_transaction_to_string(transaction);
+//         }
+//         serializer.serialize_u64(*self)
+//     }
+// }
+
 #[derive(Debug, Clone)]
 pub struct MerkleNode {
     pub left: Option<Box<MerkleNode>>,
@@ -101,7 +115,7 @@ impl MerkleTree {
             .map(|tx| MerkleNode {
                 left: None,
                 right: None,
-                value: digest(&serialize_transaction(tx)),
+                value: digest(&convert_transaction_to_string(tx)),
             })
             .collect();
 
