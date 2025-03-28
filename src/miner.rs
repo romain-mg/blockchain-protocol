@@ -114,8 +114,7 @@ impl Miner {
             } else {
                 self.mempool.clear();
             }
-            self.network
-                .broadcast_block(self, block.clone(), blockchain);
+            self.broadcast_block(block.clone(), blockchain);
             return Some(Block::hash_header(&block.header));
         }
         return None;
@@ -162,7 +161,7 @@ impl Miner {
         miner
     }
 
-    pub fn add_block_to_blockchain(&self, block: Block, blockchain: &mut Blockchain) {
+    pub fn on_block_receive(&self, block: Block, blockchain: &mut Blockchain) {
         if !self.validate_block(block.clone(), &blockchain) {
             return;
         }

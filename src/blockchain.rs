@@ -2,6 +2,7 @@ pub mod account;
 pub mod block;
 pub mod utils;
 
+use defaultmap::DefaultHashMap;
 use std::collections::{HashMap, HashSet};
 
 pub use account::AccountKeys;
@@ -30,6 +31,7 @@ pub struct Blockchain {
     pub current_longest_chain_latest_block_hash: String,
     pub blocks_between_difficulty_adjustment: u64,
     pub latest_n_block_timestamps: Vec<u64>,
+    pub hash_to_miners_who_received_the_block: DefaultHashMap<String, Vec<VerifyingKey>>,
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +67,7 @@ impl Blockchain {
             current_longest_chain_latest_block_hash: String::from(""),
             blocks_between_difficulty_adjustment,
             latest_n_block_timestamps: Vec::new(),
+            hash_to_miners_who_received_the_block: DefaultHashMap::new(),
         }
     }
 
