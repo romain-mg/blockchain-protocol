@@ -25,36 +25,10 @@ impl Network {
         &mut self,
         transaction: Transaction,
         signature: &Signature,
-        mut connected_miner: Miner,
+        connected_miner: &mut Miner,
         blockchain: &mut Blockchain,
     ) {
-        connected_miner.add_transaction_to_mempool(transaction, signature, blockchain);
-    }
-
-    pub fn broadcast_block(&self, sender_miner: &Miner, block: Block, blockchain: &mut Blockchain) {
-        if !self.miners.contains(&sender_miner) {
-            return;
-        }
-        self.send_block_to_miners(block, sender_miner, blockchain);
-    }
-
-    fn send_block_to_miners(
-        &self,
-        block: Block,
-        sender_miner: &Miner,
-        blockchain: &mut Blockchain,
-    ) {
-        for miner in self.miners.iter() {
-            if miner.account_keys.get_public_key() == sender_miner.account_keys.get_public_key() {
-                continue;
-            }
-            println!(
-                "Sending block {:?} to miner: {:?}",
-                block,
-                miner.account_keys.get_public_key()
-            );
-            miner.add_block_to_blockchain(block.clone(), blockchain);
-        }
+        connected_miner.on_transaction_receive(transaction, signature, blockchain);
     }
 
     pub fn serialize_block(block: Block) -> String {

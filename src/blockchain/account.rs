@@ -10,7 +10,7 @@ use rand::rngs::OsRng;
 
 #[derive(Clone, PartialEq)]
 pub struct AccountKeys {
-    pub public_key: VerifyingKey,
+    public_key: VerifyingKey,
     private_key: SigningKey,
 }
 

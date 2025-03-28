@@ -70,19 +70,6 @@ impl Block {
     }
 }
 
-// impl Serialize for Block {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         let mut block = self.clone();
-//         for transaction in block.transactions.iter() {
-//             transaction = convert_transaction_to_string(transaction);
-//         }
-//         serializer.serialize_u64(*self)
-//     }
-// }
-
 #[derive(Debug, Clone)]
 pub struct MerkleNode {
     pub left: Option<Box<MerkleNode>>,

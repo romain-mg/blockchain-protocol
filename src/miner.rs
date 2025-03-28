@@ -16,21 +16,42 @@ pub struct Miner {
     pub mempool: Vec<Transaction>,
     pub account_keys: AccountKeys,
     pub network: Network,
+    pub connected_peers: Vec<Miner>,
 }
 
 impl Miner {
-    pub fn add_transaction_to_mempool(
+    pub fn on_transaction_receive(
         &mut self,
         transaction: Transaction,
         signature: &Signature,
         blockchain: &mut Blockchain,
     ) {
+        if self.mempool.contains(&transaction) {
+            return;
+        }
+        if self._validate_transaction(transaction.clone(), signature, blockchain) {
+            let mut idx: usize = 0;
+            for mempool_transaction in self.mempool.iter() {
+                if mempool_transaction.fee > transaction.fee {
+                    idx += 1;
+                }
+            }
+            self.mempool.insert(idx, transaction.clone());
+            self.broadcast_transaction(transaction, signature, blockchain);
+        }
+    }
+    fn _validate_transaction(
+        &mut self,
+        transaction: Transaction,
+        signature: &Signature,
+        blockchain: &mut Blockchain,
+    ) -> bool {
         if !(transaction
             .public_key_from
             .verify(hash_transaction(&transaction).as_bytes(), signature)
             .is_ok())
         {
-            return;
+            return false;
         }
 
         let public_key = &transaction.public_key_from;
@@ -41,19 +62,12 @@ impl Miner {
         }
         let unwraped_account = account.expect("Account not existing");
         if transaction.nonce < unwraped_account.nonce {
-            return;
+            return false;
         }
         if unwraped_account.balance < transaction.amount + transaction.fee {
-            return;
+            return false;
         }
-
-        let mut idx: usize = 0;
-        for mempool_transaction in self.mempool.iter() {
-            if mempool_transaction.fee > transaction.fee {
-                idx += 1;
-            }
-        }
-        self.mempool.insert(idx, transaction);
+        return true;
     }
 
     pub fn compute_next_block(
@@ -142,6 +156,7 @@ impl Miner {
             mempool: Vec::new(),
             account_keys: AccountKeys::new(),
             network,
+            connected_peers: Vec::new(),
         };
         blockchain.create_account(&miner.account_keys.get_public_key());
         miner
@@ -185,5 +200,42 @@ impl Miner {
             }
         }
         return true;
+    }
+
+    pub fn _add_connected_peer(&mut self, connected_peer: Miner) {
+        if connected_peer.account_keys.get_public_key() == self.account_keys.get_public_key() {
+            panic!("Cannot add oneself to connected peers!");
+        }
+        self.connected_peers.push(connected_peer);
+    }
+
+    pub fn broadcast_block(&self, block: Block, blockchain: &mut Blockchain) {
+        let block_hash = Block::hash_header(&block.header);
+        blockchain.hash_to_miners_who_received_the_block[block_hash.clone()]
+            .push(self.account_keys.get_public_key());
+        for miner in self.connected_peers.iter() {
+            if blockchain.hash_to_miners_who_received_the_block[block_hash.clone()]
+                .contains(&miner.account_keys.get_public_key())
+            {
+                continue;
+            }
+            println!(
+                "Sending block {:?} to miner: {:?}",
+                block,
+                miner.account_keys.get_public_key()
+            );
+            miner.on_block_receive(block.clone(), blockchain);
+        }
+    }
+
+    pub fn broadcast_transaction(
+        &mut self,
+        transaction: Transaction,
+        signature: &Signature,
+        blockchain: &mut Blockchain,
+    ) {
+        for miner in self.connected_peers.iter_mut() {
+            miner.on_transaction_receive(transaction.clone(), signature, blockchain);
+        }
     }
 }
