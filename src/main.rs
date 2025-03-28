@@ -17,6 +17,7 @@ fn main() {
     );
 
     let mut miner: Miner = Miner::new(&mut blockchain, Network::new());
+    let mut network: Network = Network::new();
 
     let mut sender_account = account::AccountKeys::new();
     let sender_account_public_key = sender_account.get_public_key();
@@ -58,9 +59,9 @@ fn main() {
 
     let signature_2: Signature = sender_account.sign_transaction(&transaction_2);
 
-    miner.add_transaction_to_mempool(transaction_0, &signature_0, &mut blockchain);
-    miner.add_transaction_to_mempool(transaction_1, &signature_1, &mut blockchain);
-    miner.add_transaction_to_mempool(transaction_2, &signature_2, &mut blockchain);
+    network.send_transaction(transaction_0, &signature_0, &mut miner, &mut blockchain);
+    network.send_transaction(transaction_1, &signature_1, &mut miner, &mut blockchain);
+    network.send_transaction(transaction_2, &signature_2, &mut miner, &mut blockchain);
 
     let block_hash = miner.compute_next_block(&mut blockchain, String::from(""));
 

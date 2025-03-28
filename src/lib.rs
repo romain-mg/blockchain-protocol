@@ -14,9 +14,10 @@ mod tests {
 
     #[test]
     fn test_mine_one_block() {
-        let (mut blockchain, mut miner, mut sender_account, receiver_account) = setup();
-        let sender_account_public_key = sender_account.public_key;
-        let receiver_account_public_key = receiver_account.public_key;
+        let (mut blockchain, mut network, mut miner, mut sender_account, receiver_account) =
+            setup();
+        let sender_account_public_key = sender_account.get_public_key();
+        let receiver_account_public_key = receiver_account.get_public_key();
         let transaction_0: Transaction = Transaction {
             public_key_from: sender_account_public_key,
             public_key_to: receiver_account_public_key,
@@ -47,9 +48,9 @@ mod tests {
 
         let signature_2: Signature = sender_account.sign_transaction(&transaction_2);
 
-        miner.add_transaction_to_mempool(transaction_0, &signature_0, &mut blockchain);
-        miner.add_transaction_to_mempool(transaction_1, &signature_1, &mut blockchain);
-        miner.add_transaction_to_mempool(transaction_2, &signature_2, &mut blockchain);
+        network.send_transaction(transaction_0, &signature_0, &mut miner, &mut blockchain);
+        network.send_transaction(transaction_1, &signature_1, &mut miner, &mut blockchain);
+        network.send_transaction(transaction_2, &signature_2, &mut miner, &mut blockchain);
 
         miner
             .compute_next_block(&mut blockchain, String::from(""))
@@ -57,19 +58,20 @@ mod tests {
         assert_eq!(sender_account.get_balance(&mut blockchain), U256::from(994));
         assert_eq!(receiver_account.get_balance(&mut blockchain), U256::from(3));
         assert_eq!(
-            blockchain.get_balance(&miner.account_keys.public_key),
+            blockchain.get_balance(&miner.account_keys.get_public_key()),
             U256::add(U256::from(3), U256::from(blockchain.mining_reward))
         );
     }
 
     #[test]
     fn test_chain_reorg() {
-        let (mut blockchain, miner, sender_account, receiver_account) = setup();
+        let (mut blockchain, network, miner, sender_account, receiver_account) = setup();
         let (new_blockchain, fork_block_hash) = mine_initial_blockchain_helper(
             blockchain,
             miner.clone(),
             sender_account.clone(),
             &receiver_account,
+            network.clone(),
         );
         blockchain = new_blockchain;
         let sender_account_balance = sender_account.get_balance(&mut blockchain);
@@ -89,6 +91,7 @@ mod tests {
             sender_account.clone(),
             &receiver_account,
             fork_block_hash,
+            network,
         );
         blockchain = forked_blockchain;
         let receiver_account_balance = receiver_account.get_balance(&mut blockchain);
@@ -97,7 +100,7 @@ mod tests {
         assert_eq!(sender_account_balance, U256::from(959));
     }
 
-    fn setup() -> (Blockchain, Miner, AccountKeys, AccountKeys) {
+    fn setup() -> (Blockchain, Network, Miner, AccountKeys, AccountKeys) {
         let difficulty_divisor: i32 = 20000;
         let difficulty: U256 = U256::MAX / difficulty_divisor;
         let target_duration_between_blocks = 5;
@@ -111,6 +114,8 @@ mod tests {
         );
 
         let miner: Miner = Miner::new(&mut blockchain, Network::new());
+        let mut network: Network = Network::new();
+        network.add_miner(miner.clone());
 
         let sender_account = AccountKeys::new();
         let sender_account_public_key = sender_account.get_public_key();
@@ -121,7 +126,7 @@ mod tests {
         blockchain.create_account(&receiver_account_public_key);
 
         blockchain.mint(&sender_account_public_key, U256::from(1000));
-        return (blockchain, miner, sender_account, receiver_account);
+        return (blockchain, network, miner, sender_account, receiver_account);
     }
 
     fn mine_initial_blockchain_helper(
@@ -129,9 +134,10 @@ mod tests {
         mut miner: Miner,
         mut sender_account: AccountKeys,
         receiver_account: &AccountKeys,
+        mut network: Network,
     ) -> (Blockchain, String) {
-        let sender_account_public_key = sender_account.public_key;
-        let receiver_account_public_key = receiver_account.public_key;
+        let sender_account_public_key = sender_account.get_public_key();
+        let receiver_account_public_key = receiver_account.get_public_key();
         let transaction_0: Transaction = Transaction {
             public_key_from: sender_account_public_key,
             public_key_to: receiver_account_public_key,
@@ -162,9 +168,9 @@ mod tests {
 
         let signature_2: Signature = sender_account.sign_transaction(&transaction_2);
 
-        miner.add_transaction_to_mempool(transaction_0, &signature_0, &mut blockchain);
-        miner.add_transaction_to_mempool(transaction_1, &signature_1, &mut blockchain);
-        miner.add_transaction_to_mempool(transaction_2, &signature_2, &mut blockchain);
+        network.send_transaction(transaction_0, &signature_0, &mut miner, &mut blockchain);
+        network.send_transaction(transaction_1, &signature_1, &mut miner, &mut blockchain);
+        network.send_transaction(transaction_2, &signature_2, &mut miner, &mut blockchain);
 
         let first_block_hash = miner
             .compute_next_block(&mut blockchain, String::from(""))
@@ -200,9 +206,9 @@ mod tests {
 
         let signature_5: Signature = sender_account.sign_transaction(&transaction_5);
 
-        miner.add_transaction_to_mempool(transaction_3, &signature_3, &mut blockchain);
-        miner.add_transaction_to_mempool(transaction_4, &signature_4, &mut blockchain);
-        miner.add_transaction_to_mempool(transaction_5, &signature_5, &mut blockchain);
+        network.send_transaction(transaction_3, &signature_3, &mut miner, &mut blockchain);
+        network.send_transaction(transaction_4, &signature_4, &mut miner, &mut blockchain);
+        network.send_transaction(transaction_5, &signature_5, &mut miner, &mut blockchain);
 
         miner.compute_next_block(&mut blockchain, first_block_hash.clone());
         return (blockchain, first_block_hash);
@@ -214,9 +220,10 @@ mod tests {
         mut sender_account: AccountKeys,
         receiver_account: &AccountKeys,
         fork_block_hash: String,
+        mut network: Network,
     ) -> (Blockchain, String) {
-        let sender_account_public_key = sender_account.public_key;
-        let receiver_account_public_key = receiver_account.public_key;
+        let sender_account_public_key = sender_account.get_public_key();
+        let receiver_account_public_key = receiver_account.get_public_key();
 
         let transaction_3: Transaction = Transaction {
             public_key_from: sender_account_public_key,
@@ -248,9 +255,9 @@ mod tests {
 
         let signature_5: Signature = sender_account.sign_transaction(&transaction_5);
 
-        miner.add_transaction_to_mempool(transaction_3, &signature_3, &mut blockchain);
-        miner.add_transaction_to_mempool(transaction_4, &signature_4, &mut blockchain);
-        miner.add_transaction_to_mempool(transaction_5, &signature_5, &mut blockchain);
+        network.send_transaction(transaction_3, &signature_3, &mut miner, &mut blockchain);
+        network.send_transaction(transaction_4, &signature_4, &mut miner, &mut blockchain);
+        network.send_transaction(transaction_5, &signature_5, &mut miner, &mut blockchain);
 
         let concurrent_block_hash = miner
             .compute_next_block(&mut blockchain, fork_block_hash)
@@ -281,8 +288,8 @@ mod tests {
 
         let signature_7: Signature = sender_account.sign_transaction(&transaction_7);
 
-        miner.add_transaction_to_mempool(transaction_6, &signature_6, &mut blockchain);
-        miner.add_transaction_to_mempool(transaction_7, &signature_7, &mut blockchain);
+        network.send_transaction(transaction_6, &signature_6, &mut miner, &mut blockchain);
+        network.send_transaction(transaction_7, &signature_7, &mut miner, &mut blockchain);
 
         let dominant_block_hash = miner
             .compute_next_block(&mut blockchain, concurrent_block_hash)
@@ -293,18 +300,16 @@ mod tests {
 
     #[test]
     fn test_network_block_propagation() {
-        let (base_blockchain, base_miner, mut sender_account, receiver_account) = setup();
+        let (base_blockchain, mut network, _, mut sender_account, receiver_account) = setup();
 
         // Clone the base blockchain to simulate separate states for two different nodes.
         let mut blockchain1 = base_blockchain.clone(); // Miner1's view
         let mut blockchain2 = base_blockchain; // Miner2's view
 
-        // Create a common simulated network instance.
-        let mut network = Network::new();
-
-        // Create two miners, each with its own blockchain state but using the same network.
+        // Create two miners, each with its own blockchain state but using the same network and connect them.
         let mut miner1 = Miner::new(&mut blockchain1, network.clone());
-        let mut miner2 = Miner::new(&mut blockchain2, network.clone());
+        let miner2 = Miner::new(&mut blockchain2, network.clone());
+        miner1._add_connected_peer(miner2.clone());
 
         // Add both miners to the network.
         network.add_miner(miner1.clone());
@@ -329,7 +334,7 @@ mod tests {
         let signature: Signature = sender_account.sign_transaction(&transaction);
 
         // Add the transaction to miner1's mempool (which is part of blockchain1).
-        miner1.add_transaction_to_mempool(transaction, &signature, &mut blockchain1);
+        network.send_transaction(transaction, &signature, &mut miner1, &mut blockchain1);
 
         // Miner1 mines a block on its blockchain.
         let parent_hash = blockchain1.current_longest_chain_latest_block_hash.clone();
@@ -345,7 +350,7 @@ mod tests {
 
         // --- Propagation Phase ---
         // Simulate network propagation: broadcast the block from miner1 to miner2's blockchain.
-        network.broadcast_block(&miner1, new_block, &mut blockchain2);
+        miner1.broadcast_block(new_block, &mut blockchain2);
 
         // --- Verification Phase ---
         // Verify that miner2's blockchain now has the new block as its tip.
