@@ -21,14 +21,16 @@ impl Network {
         self.miners.push(miner);
     }
 
-    pub fn send_transaction(
+    pub async fn send_transaction(
         &mut self,
         transaction: Transaction,
         signature: &Signature,
         connected_miner: &mut Miner,
         blockchain: &mut Blockchain,
     ) {
-        connected_miner.on_transaction_receive(transaction, signature, blockchain);
+        connected_miner
+            .on_transaction_receive(transaction, signature, blockchain)
+            .await;
     }
 
     pub fn serialize_block(block: Block) -> String {

@@ -12,8 +12,8 @@ mod tests {
     use k256::ecdsa::Signature;
     use primitive_types::U256;
 
-    #[test]
-    fn test_mine_one_block() {
+    #[tokio::test]
+    async fn test_mine_one_block() {
         let (mut blockchain, mut network, mut miner, mut sender_account, receiver_account) =
             setup();
         let sender_account_public_key = sender_account.get_public_key();
@@ -47,13 +47,19 @@ mod tests {
         };
 
         let signature_2: Signature = sender_account.sign_transaction(&transaction_2);
-
-        network.send_transaction(transaction_0, &signature_0, &mut miner, &mut blockchain);
-        network.send_transaction(transaction_1, &signature_1, &mut miner, &mut blockchain);
-        network.send_transaction(transaction_2, &signature_2, &mut miner, &mut blockchain);
+        network
+            .send_transaction(transaction_0, &signature_0, &mut miner, &mut blockchain)
+            .await;
+        network
+            .send_transaction(transaction_1, &signature_1, &mut miner, &mut blockchain)
+            .await;
+        network
+            .send_transaction(transaction_2, &signature_2, &mut miner, &mut blockchain)
+            .await;
 
         miner
             .compute_next_block(&mut blockchain, String::from(""))
+            .await
             .expect("Block must have been built");
         assert_eq!(sender_account.get_balance(&mut blockchain), U256::from(994));
         assert_eq!(receiver_account.get_balance(&mut blockchain), U256::from(3));
@@ -63,8 +69,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_chain_reorg() {
+    #[tokio::test]
+    async fn test_chain_reorg() {
         let (mut blockchain, network, miner, sender_account, receiver_account) = setup();
         let (new_blockchain, fork_block_hash) = mine_initial_blockchain_helper(
             blockchain,
@@ -72,7 +78,8 @@ mod tests {
             sender_account.clone(),
             &receiver_account,
             network.clone(),
-        );
+        )
+        .await;
         blockchain = new_blockchain;
         let sender_account_balance = sender_account.get_balance(&mut blockchain);
         assert_eq!(sender_account_balance, U256::from(988));
@@ -92,7 +99,8 @@ mod tests {
             &receiver_account,
             fork_block_hash,
             network,
-        );
+        )
+        .await;
         blockchain = forked_blockchain;
         let receiver_account_balance = receiver_account.get_balance(&mut blockchain);
         assert_eq!(receiver_account_balance, U256::from(28));
@@ -129,7 +137,7 @@ mod tests {
         return (blockchain, network, miner, sender_account, receiver_account);
     }
 
-    fn mine_initial_blockchain_helper(
+    async fn mine_initial_blockchain_helper(
         mut blockchain: Blockchain,
         mut miner: Miner,
         mut sender_account: AccountKeys,
@@ -168,12 +176,19 @@ mod tests {
 
         let signature_2: Signature = sender_account.sign_transaction(&transaction_2);
 
-        network.send_transaction(transaction_0, &signature_0, &mut miner, &mut blockchain);
-        network.send_transaction(transaction_1, &signature_1, &mut miner, &mut blockchain);
-        network.send_transaction(transaction_2, &signature_2, &mut miner, &mut blockchain);
+        network
+            .send_transaction(transaction_0, &signature_0, &mut miner, &mut blockchain)
+            .await;
+        network
+            .send_transaction(transaction_1, &signature_1, &mut miner, &mut blockchain)
+            .await;
+        network
+            .send_transaction(transaction_2, &signature_2, &mut miner, &mut blockchain)
+            .await;
 
         let first_block_hash = miner
             .compute_next_block(&mut blockchain, String::from(""))
+            .await
             .unwrap();
 
         let transaction_3: Transaction = Transaction {
@@ -206,15 +221,23 @@ mod tests {
 
         let signature_5: Signature = sender_account.sign_transaction(&transaction_5);
 
-        network.send_transaction(transaction_3, &signature_3, &mut miner, &mut blockchain);
-        network.send_transaction(transaction_4, &signature_4, &mut miner, &mut blockchain);
-        network.send_transaction(transaction_5, &signature_5, &mut miner, &mut blockchain);
+        network
+            .send_transaction(transaction_3, &signature_3, &mut miner, &mut blockchain)
+            .await;
+        network
+            .send_transaction(transaction_4, &signature_4, &mut miner, &mut blockchain)
+            .await;
+        network
+            .send_transaction(transaction_5, &signature_5, &mut miner, &mut blockchain)
+            .await;
 
-        miner.compute_next_block(&mut blockchain, first_block_hash.clone());
+        miner
+            .compute_next_block(&mut blockchain, first_block_hash.clone())
+            .await;
         return (blockchain, first_block_hash);
     }
 
-    fn mine_fork_helper(
+    async fn mine_fork_helper(
         mut blockchain: Blockchain,
         mut miner: Miner,
         mut sender_account: AccountKeys,
@@ -255,12 +278,19 @@ mod tests {
 
         let signature_5: Signature = sender_account.sign_transaction(&transaction_5);
 
-        network.send_transaction(transaction_3, &signature_3, &mut miner, &mut blockchain);
-        network.send_transaction(transaction_4, &signature_4, &mut miner, &mut blockchain);
-        network.send_transaction(transaction_5, &signature_5, &mut miner, &mut blockchain);
+        network
+            .send_transaction(transaction_3, &signature_3, &mut miner, &mut blockchain)
+            .await;
+        network
+            .send_transaction(transaction_4, &signature_4, &mut miner, &mut blockchain)
+            .await;
+        network
+            .send_transaction(transaction_5, &signature_5, &mut miner, &mut blockchain)
+            .await;
 
         let concurrent_block_hash = miner
             .compute_next_block(&mut blockchain, fork_block_hash)
+            .await
             .unwrap();
 
         let mut_sender = blockchain
@@ -288,18 +318,23 @@ mod tests {
 
         let signature_7: Signature = sender_account.sign_transaction(&transaction_7);
 
-        network.send_transaction(transaction_6, &signature_6, &mut miner, &mut blockchain);
-        network.send_transaction(transaction_7, &signature_7, &mut miner, &mut blockchain);
+        network
+            .send_transaction(transaction_6, &signature_6, &mut miner, &mut blockchain)
+            .await;
+        network
+            .send_transaction(transaction_7, &signature_7, &mut miner, &mut blockchain)
+            .await;
 
         let dominant_block_hash = miner
             .compute_next_block(&mut blockchain, concurrent_block_hash)
+            .await
             .unwrap();
 
         return (blockchain, dominant_block_hash);
     }
 
-    #[test]
-    fn test_network_block_propagation() {
+    #[tokio::test]
+    async fn test_network_block_propagation() {
         let (base_blockchain, mut network, _, mut sender_account, receiver_account) = setup();
 
         // Clone the base blockchain to simulate separate states for two different nodes.
@@ -334,12 +369,15 @@ mod tests {
         let signature: Signature = sender_account.sign_transaction(&transaction);
 
         // Add the transaction to miner1's mempool (which is part of blockchain1).
-        network.send_transaction(transaction, &signature, &mut miner1, &mut blockchain1);
+        network
+            .send_transaction(transaction, &signature, &mut miner1, &mut blockchain1)
+            .await;
 
         // Miner1 mines a block on its blockchain.
         let parent_hash = blockchain1.current_longest_chain_latest_block_hash.clone();
         let new_block_hash = miner1
             .compute_next_block(&mut blockchain1, parent_hash)
+            .await
             .expect("Block must be mined");
 
         // Retrieve the newly mined block from blockchain1.
@@ -350,7 +388,7 @@ mod tests {
 
         // --- Propagation Phase ---
         // Simulate network propagation: broadcast the block from miner1 to miner2's blockchain.
-        miner1.broadcast_block(new_block, &mut blockchain2);
+        miner1.broadcast_block(new_block, &mut blockchain2).await;
 
         // --- Verification Phase ---
         // Verify that miner2's blockchain now has the new block as its tip.
