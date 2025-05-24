@@ -20,7 +20,7 @@ pub struct Miner {
 }
 
 impl Miner {
-    pub fn on_transaction_receive(
+    pub async fn on_transaction_receive(
         &mut self,
         transaction: Transaction,
         signature: &Signature,
@@ -37,9 +37,23 @@ impl Miner {
                 }
             }
             self.mempool.insert(idx, transaction.clone());
-            self.broadcast_transaction(transaction, signature, blockchain);
+            Box::pin(self.broadcast_transaction(transaction, signature, blockchain)).await;
         }
     }
+
+    pub async fn broadcast_transaction(
+        &mut self,
+        transaction: Transaction,
+        signature: &Signature,
+        blockchain: &mut Blockchain,
+    ) {
+        for miner in self.connected_peers.iter_mut() {
+            miner
+                .on_transaction_receive(transaction.clone(), signature, blockchain)
+                .await;
+        }
+    }
+
     fn _validate_transaction(
         &mut self,
         transaction: Transaction,
@@ -70,7 +84,7 @@ impl Miner {
         return true;
     }
 
-    pub fn compute_next_block(
+    pub async fn compute_next_block(
         &mut self,
         blockchain: &mut Blockchain,
         parent_block_hash: String,
@@ -114,7 +128,7 @@ impl Miner {
             } else {
                 self.mempool.clear();
             }
-            self.broadcast_block(block.clone(), blockchain);
+            self.broadcast_block(block.clone(), blockchain).await;
             return Some(Block::hash_header(&block.header));
         }
         return None;
@@ -161,7 +175,7 @@ impl Miner {
         miner
     }
 
-    pub fn on_block_receive(&self, block: Block, blockchain: &mut Blockchain) {
+    pub async fn on_block_receive(&self, block: Block, blockchain: &mut Blockchain) {
         if !self.validate_block(block.clone(), &blockchain) {
             return;
         }
@@ -208,7 +222,7 @@ impl Miner {
         self.connected_peers.push(connected_peer);
     }
 
-    pub fn broadcast_block(&self, block: Block, blockchain: &mut Blockchain) {
+    pub async fn broadcast_block(&self, block: Block, blockchain: &mut Blockchain) {
         let block_hash = Block::hash_header(&block.header);
         blockchain.hash_to_miners_who_received_the_block[block_hash.clone()]
             .push(self.account_keys.get_public_key());
@@ -223,18 +237,7 @@ impl Miner {
                 block,
                 miner.account_keys.get_public_key()
             );
-            miner.on_block_receive(block.clone(), blockchain);
-        }
-    }
-
-    pub fn broadcast_transaction(
-        &mut self,
-        transaction: Transaction,
-        signature: &Signature,
-        blockchain: &mut Blockchain,
-    ) {
-        for miner in self.connected_peers.iter_mut() {
-            miner.on_transaction_receive(transaction.clone(), signature, blockchain);
+            miner.on_block_receive(block.clone(), blockchain).await;
         }
     }
 }
