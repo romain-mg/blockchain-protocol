@@ -231,6 +231,7 @@ dependencies = [
  "k256",
  "multimap",
  "primitive-types",
+ "prost",
  "rand",
  "rayon",
  "rustc-hex",

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package p2p;
+
+service P2P {
+  rpc Example (ExampleRequest) returns (ExampleReply) {}
+}
+
+message ExampleRequest {
+  uint32 input = 1;
+}
+
+message ExampleReply {
+  uint32 output = 1;
+}
