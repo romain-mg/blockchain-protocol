@@ -3,13 +3,13 @@ syntax = "proto3";
 package p2p;
 
 service P2P {
-  rpc Example (ExampleRequest) returns (ExampleReply) {}
+  rpc P2PExample (P2PExampleRequest) returns (P2PExampleReply) {}
 }
 
-message ExampleRequest {
+message P2PExampleRequest {
   uint32 input = 1;
 }
 
-message ExampleReply {
+message P2PExampleReply {
   uint32 output = 1;
 }
