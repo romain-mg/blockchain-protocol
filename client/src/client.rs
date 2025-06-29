@@ -1,5 +1,5 @@
 use anyhow::Result;
-use core::{SERVER_ADDR, rpc::client_to_node::*};
+use blockchain_core::{SERVER_ADDR, rpc::client_to_node::*};
 use tonic::transport::Channel;
 
 async fn connect() -> Result<client_to_node_client::ClientToNodeClient<Channel>> {

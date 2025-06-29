@@ -90,9 +90,9 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "async-trait"
-version = "0.1.86"
+version = "0.1.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "644dd749086bf3771a2fbc5f256fdb982d53f011c7d5d560304eafeecebce79d"
+checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -217,6 +217,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "blockchain_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "defaultmap",
+ "k256",
+ "multimap",
+ "primitive-types",
+ "prost",
+ "rand",
+ "rayon",
+ "rustc-hex",
+ "serde",
+ "serde_json",
+ "sha256",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "uint",
+]
+
+[[package]]
 name = "byte-slice-cast"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -285,8 +307,8 @@ name = "client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blockchain_core",
  "clap",
- "core",
  "tokio",
  "tonic",
 ]
@@ -321,28 +343,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
-]
-
-[[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "defaultmap",
- "k256",
- "multimap",
- "primitive-types",
- "prost",
- "rand",
- "rayon",
- "rustc-hex",
- "serde",
- "serde_json",
- "sha256",
- "tokio",
- "tonic",
- "tonic-build",
- "uint",
 ]
 
 [[package]]
@@ -957,7 +957,10 @@ dependencies = [
 name = "node"
 version = "0.1.0"
 dependencies = [
- "core",
+ "anyhow",
+ "async-trait",
+ "blockchain_core",
+ "tonic",
 ]
 
 [[package]]
