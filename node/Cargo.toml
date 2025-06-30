@@ -7,4 +7,5 @@ edition = "2024"
 anyhow = "1.0.98"
 async-trait = "0.1.88"
 blockchain_core = { path = "../blockchain_core" }
+tokio = "1.45.1"
 tonic = "0.13.1"
