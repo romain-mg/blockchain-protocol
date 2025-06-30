@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package clientToNode;
+
+service ClientToNode {
+  rpc ClientToNodeExample (ClientToNodeExampleRequest) returns (ClientToNodeExampleReply) {}
+}
+
+message ClientToNodeExampleRequest {
+  uint32 input = 1;
+}
+
+message ClientToNodeExampleReply {
+  uint32 output = 1;
+}

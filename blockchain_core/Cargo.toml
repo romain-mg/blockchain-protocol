@@ -1,5 +1,5 @@
 [package]
-name = "core"
+name = "blockchain_core"
 version = "0.1.0"
 edition = "2021"
 
@@ -17,5 +17,12 @@ defaultmap = "0.6.0"
 tokio = {version = "1.45.0", features = ["full"] }
 rayon = "1.10.0"
 tonic = "0.13.1"
-tonic-build = "0.13.1"
+prost = "0.13.5"
+anyhow = "1.0.98"
+log = "0.4.27"
+env_logger = "0.11.8"
 
+
+
+[build-dependencies]
+tonic-build = "0.13.1"

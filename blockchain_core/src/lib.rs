@@ -1,6 +1,9 @@
 pub mod blockchain;
+pub mod log;
 pub mod miner;
 pub mod network;
+pub mod rpc;
+pub const SERVER_ADDR: &str = "127.0.0.1:10162";
 
 #[cfg(test)]
 mod tests {

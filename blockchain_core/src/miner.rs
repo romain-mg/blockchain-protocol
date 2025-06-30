@@ -5,6 +5,7 @@ pub use crate::blockchain::{
     utils::{convert_public_key_to_bytes, hash_transaction},
     Blockchain,
 };
+use crate::log;
 use crate::network::Network;
 use k256::ecdsa::{signature::Verifier, Signature};
 use primitive_types::U256;
@@ -205,9 +206,10 @@ impl Miner {
                 }
             }
             Err(err) => {
-                println!(
+                log::error!(
                     "Error: cannot parse block hash {}: encountered {}",
-                    &block_hash, err
+                    &block_hash,
+                    err
                 );
                 return false;
             }
@@ -232,7 +234,7 @@ impl Miner {
             {
                 continue;
             }
-            println!(
+            log::info!(
                 "Sending block {:?} to miner: {:?}",
                 block,
                 miner.account_keys.get_public_key()
