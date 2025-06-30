@@ -4,6 +4,7 @@
 pub mod client;
 
 use anyhow::Result;
+use blockchain_core::log;
 use clap::{Parser, Subcommand};
 use client::example;
 
@@ -29,7 +30,7 @@ async fn main() -> Result<()> {
     match args.command {
         Commands::Example { input } => {
             let output = example(input).await?;
-            println!("{}", output);
+            log::info!("{}", output);
         }
     }
 

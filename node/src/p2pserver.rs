@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use blockchain_core::{SERVER_ADDR, rpc::p2p::*};
+use blockchain_core::{SERVER_ADDR, log, rpc::p2p::*};
 use tonic::{Request, Response, Status, transport::Server};
 
 pub struct P2pServer {}
@@ -11,7 +11,7 @@ impl p2p_server::P2p for P2pServer {
         &self,
         request: Request<P2pExampleRequest>,
     ) -> Result<Response<P2pExampleReply>, Status> {
-        println!("received example request");
+        log::info!("received example request");
         Ok(Response::new(P2pExampleReply { output: 0 }))
     }
 }

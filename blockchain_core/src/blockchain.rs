@@ -9,6 +9,7 @@ pub use account::AccountKeys;
 use block::MerkleTree;
 pub use block::{Block, Header, Transaction};
 use k256::ecdsa::VerifyingKey;
+use log;
 use multimap::MultiMap;
 use primitive_types::U256;
 use uint::FromStrRadixErr;
@@ -106,9 +107,10 @@ impl Blockchain {
                     }
                 }
                 Err(err) => {
-                    println!(
+                    log::error!(
                         "Error: cannot parse block hash {}: encountered {}",
-                        &block_hash, err
+                        &block_hash,
+                        err
                     );
                     return false;
                 }
