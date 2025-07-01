@@ -1,9 +1,9 @@
 use anyhow::Result;
-use blockchain_core::{SERVER_ADDR, rpc::p2p::*};
+use blockchain_core::{P2P_SERVER_ADDR, rpc::p2p::*};
 use tonic::transport::Channel;
 
 async fn connect() -> Result<p2p_client::P2pClient<Channel>> {
-    Ok(p2p_client::P2pClient::connect(format!("http://{}", SERVER_ADDR)).await?)
+    Ok(p2p_client::P2pClient::connect(format!("http://{}", P2P_SERVER_ADDR)).await?)
 }
 
 pub async fn example(input: u32) -> Result<u32> {

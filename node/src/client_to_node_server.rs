@@ -18,6 +18,7 @@ impl client_to_node_server::ClientToNode for ClientToNodeServer {
 
 pub async fn start() -> Result<()> {
     let svc = client_to_node_server::ClientToNodeServer::new(ClientToNodeServer {});
+    log::info!("Starting client to node server on {}", SERVER_ADDR);
     Server::builder()
         .add_service(svc)
         .serve(SERVER_ADDR.parse().unwrap())

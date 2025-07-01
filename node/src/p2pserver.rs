@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use blockchain_core::{SERVER_ADDR, log, rpc::p2p::*};
+use blockchain_core::{P2P_SERVER_ADDR, log, rpc::p2p::*};
 use tonic::{Request, Response, Status, transport::Server};
 
 pub struct P2pServer {}
@@ -18,9 +18,10 @@ impl p2p_server::P2p for P2pServer {
 
 pub async fn start() -> Result<()> {
     let svc = p2p_server::P2pServer::new(P2pServer {});
+    log::info!("Starting p2p server on {}", P2P_SERVER_ADDR);
     Server::builder()
         .add_service(svc)
-        .serve(SERVER_ADDR.parse().unwrap())
+        .serve(P2P_SERVER_ADDR.parse().unwrap())
         .await?;
     Ok(())
 }

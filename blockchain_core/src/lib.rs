@@ -4,6 +4,7 @@ pub mod miner;
 pub mod network;
 pub mod rpc;
 pub const SERVER_ADDR: &str = "127.0.0.1:10162";
+pub const P2P_SERVER_ADDR: &str = "127.0.0.1:10163";
 
 #[cfg(test)]
 mod tests {
