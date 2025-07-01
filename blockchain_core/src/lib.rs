@@ -1,7 +1,7 @@
 pub mod blockchain;
 pub mod log;
 pub mod miner;
-pub mod network;
+pub mod mock;
 pub mod rpc;
 pub const SERVER_ADDR: &str = "127.0.0.1:10162";
 pub const P2P_SERVER_ADDR: &str = "127.0.0.1:10163";
@@ -11,8 +11,8 @@ mod tests {
     use std::ops::Add;
 
     use crate::blockchain::{utils::convert_public_key_to_bytes, Blockchain};
-    use crate::miner::{AccountKeys, Miner, Transaction};
-    use crate::network::Network;
+    use crate::mock::mock_miner::{AccountKeys, Miner, Transaction};
+    use crate::mock::mock_network::Network;
     use k256::ecdsa::Signature;
     use primitive_types::U256;
 
