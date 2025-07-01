@@ -3,7 +3,10 @@ mod p2pclient;
 mod p2pserver;
 
 use anyhow::Result;
-use blockchain_core::{log, log::init_logger};
+use blockchain_core::{
+    log,
+    log::{error, init_logger},
+};
 use clap::{Parser, Subcommand};
 use p2pclient::example;
 use tokio::task;
@@ -36,8 +39,33 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Commands::Server {} => {
-            let p2p_handle = task::spawn(p2pserver::start());
-            let client_handle = task::spawn(client_to_node_server::start());
+            let client_handle = task::spawn(async {
+                if let Err(e) = client_to_node_server::start().await {
+                    error!("client_to_node_server failed: {:?}", e);
+                    if let Err(e) = client_to_node_server::start_secondary().await {
+                        error!("client_to_node_server_secondary failed: {:?}", e);
+                        Err(e)
+                    } else {
+                        Ok(())
+                    }
+                } else {
+                    Ok(())
+                }
+            });
+            let p2p_handle = task::spawn(async {
+                if let Err(e) = p2pserver::start().await {
+                    error!("p2pserver failed: {:?}", e);
+                    if let Err(e) = p2pserver::start_secondary().await {
+                        error!("p2pserver_secondary failed: {:?}", e);
+                        Err(e)
+                    } else {
+                        Ok(())
+                    }
+                } else {
+                    Ok(())
+                }
+            });
+
             let _ = tokio::try_join!(p2p_handle, client_handle)?;
             Ok(())
         }

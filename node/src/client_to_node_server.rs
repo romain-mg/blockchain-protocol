@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use blockchain_core::{SERVER_ADDR, log, rpc::client_to_node::*};
+use blockchain_core::{SECONDARY_SERVER_ADDR, SERVER_ADDR, log, rpc::client_to_node::*};
 use tonic::{Request, Response, Status, transport::Server};
 
 pub struct ClientToNodeServer {}
@@ -22,6 +22,20 @@ pub async fn start() -> Result<()> {
     Server::builder()
         .add_service(svc)
         .serve(SERVER_ADDR.parse().unwrap())
+        .await?;
+    Ok(())
+}
+
+// For testing purposes
+pub async fn start_secondary() -> Result<()> {
+    let svc = client_to_node_server::ClientToNodeServer::new(ClientToNodeServer {});
+    log::info!(
+        "Starting secondary client to node server on {}",
+        SECONDARY_SERVER_ADDR
+    );
+    Server::builder()
+        .add_service(svc)
+        .serve(SECONDARY_SERVER_ADDR.parse().unwrap())
         .await?;
     Ok(())
 }

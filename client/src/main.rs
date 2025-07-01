@@ -1,6 +1,3 @@
-//! The gRPC server.
-//!
-// Do not modify this file.
 pub mod client;
 
 use anyhow::Result;
