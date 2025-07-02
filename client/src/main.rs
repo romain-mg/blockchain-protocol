@@ -1,10 +1,7 @@
-//! The gRPC server.
-//!
-// Do not modify this file.
 pub mod client;
 
 use anyhow::Result;
-use blockchain_core::log;
+use blockchain_core::{log, log::init_logger};
 use clap::{Parser, Subcommand};
 use client::example;
 
@@ -25,6 +22,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    init_logger();
     let args = Args::parse();
 
     match args.command {

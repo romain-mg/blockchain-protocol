@@ -6,9 +6,9 @@ pub use crate::blockchain::{
     Blockchain,
 };
 use crate::log;
+use crate::mock::mock_network::Network;
 use k256::ecdsa::{signature::Verifier, Signature};
 use primitive_types::U256;
-use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use uint::FromStrRadixErr;
 
@@ -16,46 +16,11 @@ use uint::FromStrRadixErr;
 pub struct Miner {
     pub mempool: Vec<Transaction>,
     pub account_keys: AccountKeys,
+    pub network: Network,
     pub connected_peers: Vec<Miner>,
 }
 
 impl Miner {
-    pub fn new(blockchain: &mut Blockchain) -> Self {
-        let miner = Miner {
-            mempool: Vec::new(),
-            account_keys: AccountKeys::new(),
-            connected_peers: Vec::new(),
-        };
-        blockchain.create_account(&miner.account_keys.get_public_key());
-        miner
-    }
-
-    pub async fn on_block_receive(&self, block: Block, blockchain: &mut Blockchain) {
-        if !self.validate_block(block.clone(), &blockchain) {
-            return;
-        }
-        blockchain.add_block(block, self.account_keys.get_public_key());
-    }
-
-    pub async fn broadcast_block(&self, block: Block, blockchain: &mut Blockchain) {
-        let block_hash = Block::hash_header(&block.header);
-        blockchain.hash_to_miners_who_received_the_block[block_hash.clone()]
-            .push(self.account_keys.get_public_key());
-        for miner in self.connected_peers.iter() {
-            if blockchain.hash_to_miners_who_received_the_block[block_hash.clone()]
-                .contains(&miner.account_keys.get_public_key())
-            {
-                continue;
-            }
-            log::info!(
-                "Sending block {:?} to miner: {:?}",
-                block,
-                miner.account_keys.get_public_key()
-            );
-            miner.on_block_receive(block.clone(), blockchain).await;
-        }
-    }
-
     pub async fn on_transaction_receive(
         &mut self,
         transaction: Transaction,
@@ -90,9 +55,34 @@ impl Miner {
         }
     }
 
-    pub fn serialize_block(block: Block) -> String {
-        let ready_to_serialize_block = ReadyToSerializeBlock::new(block);
-        serde_json::to_string(&ready_to_serialize_block).unwrap()
+    fn _validate_transaction(
+        &mut self,
+        transaction: Transaction,
+        signature: &Signature,
+        blockchain: &mut Blockchain,
+    ) -> bool {
+        if !(transaction
+            .public_key_from
+            .verify(hash_transaction(&transaction).as_bytes(), signature)
+            .is_ok())
+        {
+            return false;
+        }
+
+        let public_key = &transaction.public_key_from;
+        let mut account = blockchain.get_account(public_key);
+        if account.is_none() {
+            blockchain.create_account(&public_key);
+            account = blockchain.get_account(public_key);
+        }
+        let unwraped_account = account.expect("Account not existing");
+        if transaction.nonce < unwraped_account.nonce {
+            return false;
+        }
+        if unwraped_account.balance < transaction.amount + transaction.fee {
+            return false;
+        }
+        return true;
     }
 
     pub async fn compute_next_block(
@@ -145,36 +135,6 @@ impl Miner {
         return None;
     }
 
-    fn _validate_transaction(
-        &mut self,
-        transaction: Transaction,
-        signature: &Signature,
-        blockchain: &mut Blockchain,
-    ) -> bool {
-        if !(transaction
-            .public_key_from
-            .verify(hash_transaction(&transaction).as_bytes(), signature)
-            .is_ok())
-        {
-            return false;
-        }
-
-        let public_key = &transaction.public_key_from;
-        let mut account = blockchain.get_account(public_key);
-        if account.is_none() {
-            blockchain.create_account(&public_key);
-            account = blockchain.get_account(public_key);
-        }
-        let unwraped_account = account.expect("Account not existing");
-        if transaction.nonce < unwraped_account.nonce {
-            return false;
-        }
-        if unwraped_account.balance < transaction.amount + transaction.fee {
-            return false;
-        }
-        return true;
-    }
-
     fn _compute_next_block(
         &mut self,
         transactions: Vec<Transaction>,
@@ -203,6 +163,24 @@ impl Miner {
             block.header.timestamp = timestamp;
         }
         block
+    }
+
+    pub fn new(blockchain: &mut Blockchain, network: Network) -> Self {
+        let miner = Miner {
+            mempool: Vec::new(),
+            account_keys: AccountKeys::new(),
+            network,
+            connected_peers: Vec::new(),
+        };
+        blockchain.create_account(&miner.account_keys.get_public_key());
+        miner
+    }
+
+    pub async fn on_block_receive(&self, block: Block, blockchain: &mut Blockchain) {
+        if !self.validate_block(block.clone(), &blockchain) {
+            return;
+        }
+        blockchain.add_block(block, self.account_keys.get_public_key());
     }
 
     fn validate_block(&self, block: Block, blockchain: &Blockchain) -> bool {
@@ -245,41 +223,23 @@ impl Miner {
         }
         self.connected_peers.push(connected_peer);
     }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ReadyToSerializeBlock {
-    pub header: Header,
-    pub transactions: Vec<SerializedTransaction>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct SerializedTransaction {
-    pub public_key_from: Box<[u8]>,
-    pub public_key_to: Box<[u8]>,
-    pub amount: U256,
-    pub fee: U256,
-    pub nonce: u128,
-}
-
-impl ReadyToSerializeBlock {
-    pub fn new(block: Block) -> Self {
-        let mut serialized_transactions = Vec::new();
-        for transaction in block.transactions.iter() {
-            serialized_transactions.push(SerializedTransaction {
-                public_key_from: transaction
-                    .public_key_from
-                    .to_encoded_point(true)
-                    .to_bytes(),
-                public_key_to: transaction.public_key_to.to_encoded_point(true).to_bytes(),
-                amount: transaction.amount,
-                fee: transaction.fee,
-                nonce: transaction.nonce,
-            });
-        }
-        Self {
-            header: block.header,
-            transactions: serialized_transactions,
+    pub async fn broadcast_block(&self, block: Block, blockchain: &mut Blockchain) {
+        let block_hash = Block::hash_header(&block.header);
+        blockchain.hash_to_miners_who_received_the_block[block_hash.clone()]
+            .push(self.account_keys.get_public_key());
+        for miner in self.connected_peers.iter() {
+            if blockchain.hash_to_miners_who_received_the_block[block_hash.clone()]
+                .contains(&miner.account_keys.get_public_key())
+            {
+                continue;
+            }
+            log::info!(
+                "Sending block {:?} to miner: {:?}",
+                block,
+                miner.account_keys.get_public_key()
+            );
+            miner.on_block_receive(block.clone(), blockchain).await;
         }
     }
 }
