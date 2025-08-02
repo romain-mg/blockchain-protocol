@@ -6,10 +6,12 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.98"
 async-trait = "0.1.88"
+base64 = "0.22.1"
 blockchain_core = { path = "../blockchain_core" }
 clap = { version = "4.5.39", features = ["derive"] }
+dotenv = "0.15.0"
 futures = "0.3.31"
-libp2p = { version = "0.56.0", features = ["noise", "ping", "tcp", "tokio", "yamux"] }
+libp2p = { version = "0.56.0", features = ["noise", "kad", "tcp", "tokio", "yamux", "dns"] }
 tokio = { version = "1.45.1", features = ["full"] }
 tonic = "0.13.1"
 tracing-subscriber = {version = "0.3.19", features = ["env-filter"] }
