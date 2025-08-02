@@ -1,73 +1,61 @@
 mod client_to_node_server;
-mod p2pclient;
-mod p2pserver;
-
-use anyhow::Result;
-use blockchain_core::{
-    log,
-    log::{error, init_logger},
-};
-use clap::{Parser, Subcommand};
-use p2pclient::example;
+mod p2p_node;
+use blockchain_core::log;
+use clap::Parser;
+use dotenv::dotenv;
+use libp2p::PeerId;
 use tokio::task;
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-pub struct Args {
-    #[clap(subcommand)]
-    command: Commands,
+#[command(name = "libp2p Kademlia DHT")]
+struct Args {
+    #[arg(long)]
+    secondary: bool,
+    #[arg(long)]
+    bootstrap: bool,
+    #[command(subcommand)]
+    kademilia_op: Option<KademiliaOp>,
 }
 
-#[derive(Subcommand, Debug)]
-enum Commands {
-    Example {
-        #[clap(value_parser)]
-        input: u32,
+#[derive(Debug, Parser, Clone)]
+
+enum KademiliaOp {
+    GetPeers {
+        #[arg(long)]
+        peer_id: Option<PeerId>,
     },
-    Server {},
+    PutPkRecord {},
 }
+
+use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    init_logger();
+    dotenv().ok();
+    log::init_logger();
     let args = Args::parse();
-
-    match args.command {
-        Commands::Example { input } => {
-            let output = example(input).await?;
-            log::info!("{}", output);
-            Ok(())
-        }
-        Commands::Server {} => {
-            let client_handle = task::spawn(async {
-                if let Err(e) = client_to_node_server::start().await {
-                    error!("client_to_node_server failed: {:?}", e);
-                    if let Err(e) = client_to_node_server::start_secondary().await {
-                        error!("client_to_node_server_secondary failed: {:?}", e);
-                        Err(e)
-                    } else {
-                        Ok(())
-                    }
-                } else {
-                    Ok(())
-                }
-            });
-            let p2p_handle = task::spawn(async {
-                if let Err(e) = p2pserver::start().await {
-                    error!("p2pserver failed: {:?}", e);
-                    if let Err(e) = p2pserver::start_secondary().await {
-                        error!("p2pserver_secondary failed: {:?}", e);
-                        Err(e)
-                    } else {
-                        Ok(())
-                    }
-                } else {
-                    Ok(())
-                }
-            });
-
-            let _ = tokio::try_join!(p2p_handle, client_handle)?;
-            Ok(())
-        }
+    let secondary = args.secondary;
+    let bootstrap = args.bootstrap;
+    let kademilia_op = args.kademilia_op;
+    let p2p_handle;
+    if bootstrap {
+        p2p_handle = task::spawn(p2p_node::start_bootstrap_node(kademilia_op));
+    } else {
+        p2p_handle = task::spawn(p2p_node::start_node(kademilia_op));
     }
+    let client_to_node_handle;
+    if secondary {
+        client_to_node_handle = task::spawn(client_to_node_server::start_secondary());
+    } else {
+        client_to_node_handle = task::spawn(client_to_node_server::start());
+    }
+    let (p2p_result, client_to_node_result) = tokio::join!(p2p_handle, client_to_node_handle);
+    if let Err(e) = p2p_result {
+        log::error!("P2P server error: {:?}", e);
+    }
+    if let Err(e) = client_to_node_result {
+        log::error!("Client to node server error: {:?}", e);
+    }
+
+    Ok(())
 }
