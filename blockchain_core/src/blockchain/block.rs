@@ -1,8 +1,9 @@
 use super::utils::convert_transaction_to_string;
-use k256::ecdsa::VerifyingKey;
+use k256::{PublicKey, ecdsa::VerifyingKey};
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use sha256::digest;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Header {
@@ -13,16 +14,16 @@ pub struct Header {
     pub merkle_root: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
     pub header: Header,
     pub transactions: Vec<Transaction>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transaction {
-    pub public_key_from: VerifyingKey,
-    pub public_key_to: VerifyingKey,
+    pub public_key_from: PublicKey,
+    pub public_key_to: PublicKey,
     pub amount: U256,
     pub fee: U256,
     pub nonce: u128,

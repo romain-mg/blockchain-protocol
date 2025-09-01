@@ -7,10 +7,10 @@ pub use crate::blockchain::{
 };
 use crate::log;
 use crate::mock::mock_network::Network;
-use k256::ecdsa::{signature::Verifier, Signature};
 use primitive_types::U256;
 use std::time::SystemTime;
 use uint::FromStrRadixErr;
+use k256::{ecdsa::{signature::Verifier, Signature, VerifyingKey}};
 
 #[derive(Clone, PartialEq)]
 pub struct Miner {
@@ -61,8 +61,9 @@ impl Miner {
         signature: &Signature,
         blockchain: &mut Blockchain,
     ) -> bool {
-        if !(transaction
-            .public_key_from
+        let public_key_from = transaction.public_key_from;
+        let verifying_key = VerifyingKey::from(&public_key_from);
+        if !(verifying_key
             .verify(hash_transaction(&transaction).as_bytes(), signature)
             .is_ok())
         {

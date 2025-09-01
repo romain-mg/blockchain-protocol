@@ -6,6 +6,8 @@ use crate::mock::mock_miner::Miner;
 use k256::ecdsa::Signature;
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
+use k256::elliptic_curve::sec1::ToEncodedPoint; 
+
 
 #[derive(Clone, PartialEq)]
 pub struct Network {
