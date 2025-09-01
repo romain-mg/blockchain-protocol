@@ -1,6 +1,7 @@
 pub use super::block::Transaction;
-use k256::ecdsa::VerifyingKey;
+use k256::{PublicKey, ecdsa::VerifyingKey};
 use sha256::digest;
+use k256::elliptic_curve::sec1::ToEncodedPoint; 
 
 pub fn hash_transaction(transaction: &Transaction) -> String {
     digest(convert_transaction_to_string(transaction))
@@ -18,7 +19,7 @@ pub fn convert_transaction_to_string(transaction: &Transaction) -> String {
         + &transaction.fee.to_string()
 }
 
-pub fn convert_public_key_to_bytes(public_key: &VerifyingKey) -> [u8; 33] {
+pub fn convert_public_key_to_bytes(public_key: &PublicKey) -> Vec<u8> {
     let encoded_public_key = public_key.to_encoded_point(true);
     encoded_public_key
         .as_bytes()

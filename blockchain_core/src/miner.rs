@@ -6,11 +6,12 @@ pub use crate::blockchain::{
     Blockchain,
 };
 use crate::log;
-use k256::ecdsa::{signature::Verifier, Signature};
+use k256::{ecdsa::{signature::Verifier, Signature, VerifyingKey}};
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use uint::FromStrRadixErr;
+use k256::elliptic_curve::sec1::ToEncodedPoint; 
 
 #[derive(Clone, PartialEq)]
 pub struct Miner {
@@ -151,8 +152,9 @@ impl Miner {
         signature: &Signature,
         blockchain: &mut Blockchain,
     ) -> bool {
-        if !(transaction
-            .public_key_from
+        let public_key_from = transaction.public_key_from;
+        let verifying_key = VerifyingKey::from(&public_key_from);
+        if !(verifying_key
             .verify(hash_transaction(&transaction).as_bytes(), signature)
             .is_ok())
         {
@@ -270,6 +272,7 @@ impl ReadyToSerializeBlock {
                 public_key_from: transaction
                     .public_key_from
                     .to_encoded_point(true)
+
                     .to_bytes(),
                 public_key_to: transaction.public_key_to.to_encoded_point(true).to_bytes(),
                 amount: transaction.amount,
