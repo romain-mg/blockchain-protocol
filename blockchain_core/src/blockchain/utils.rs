@@ -23,6 +23,5 @@ pub fn convert_public_key_to_bytes(public_key: &PublicKey) -> Vec<u8> {
     let encoded_public_key = public_key.to_encoded_point(true);
     encoded_public_key
         .as_bytes()
-        .try_into()
-        .expect("Public key should be 33 bytes")
+        .to_vec()
 }
