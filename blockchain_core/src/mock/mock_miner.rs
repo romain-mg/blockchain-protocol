@@ -23,34 +23,35 @@ pub struct Miner {
 impl Miner {
     pub async fn on_transaction_receive(
         &mut self,
-        transaction: Transaction,
+        serialized_transaction: Vec<u8>,
         signature: &Signature,
         blockchain: &mut Blockchain,
     ) {
-        if self.mempool.contains(&transaction) {
+        let deserialized_transaction = Transaction::deseralize(&serialized_transaction);
+        if self.mempool.contains(&deserialized_transaction) {
             return;
         }
-        if self._validate_transaction(transaction.clone(), signature, blockchain) {
+        if self._validate_transaction(deserialized_transaction.clone(), signature, blockchain) {
             let mut idx: usize = 0;
             for mempool_transaction in self.mempool.iter() {
-                if mempool_transaction.fee > transaction.fee {
+                if mempool_transaction.fee > deserialized_transaction.fee {
                     idx += 1;
                 }
             }
-            self.mempool.insert(idx, transaction.clone());
-            Box::pin(self.broadcast_transaction(transaction, signature, blockchain)).await;
+            self.mempool.insert(idx, deserialized_transaction);
+            Box::pin(self.broadcast_transaction(serialized_transaction, signature, blockchain)).await;
         }
     }
 
     pub async fn broadcast_transaction(
         &mut self,
-        transaction: Transaction,
+        serialized_transaction: Vec<u8>,
         signature: &Signature,
         blockchain: &mut Blockchain,
     ) {
         for miner in self.connected_peers.iter_mut() {
             miner
-                .on_transaction_receive(transaction.clone(), signature, blockchain)
+                .on_transaction_receive(serialized_transaction.clone(), signature, blockchain)
                 .await;
         }
     }
@@ -186,7 +187,8 @@ impl Miner {
 
     fn validate_block(&self, block: Block, blockchain: &Blockchain) -> bool {
         let block_merkle_root = &block.header.merkle_root;
-        let recomputed_merkle_root = &MerkleTree::build_tree(&block.transactions.clone())
+        let deserialized_transactions = block.get_deseralized_transactions();
+        let recomputed_merkle_root = &MerkleTree::build_tree(&deserialized_transactions)
             .root
             .expect("Merkle root is None")
             .value;
@@ -227,11 +229,22 @@ impl Miner {
 
     pub async fn broadcast_block(&self, block: Block, blockchain: &mut Blockchain) {
         let block_hash = Block::hash_header(&block.header);
-        blockchain.hash_to_miners_who_received_the_block[block_hash.clone()]
-            .push(self.account_keys.get_public_key());
+        let miners_block_recipients = blockchain.hash_to_miners_who_received_the_block.get_mut(&block_hash);
+        let public_key_bytes = convert_public_key_to_bytes(&self.account_keys.get_public_key());
+        match miners_block_recipients {
+            Some(recipients) => {
+                recipients.push(public_key_bytes);
+            }
+            None => {
+                let mut recipients: Vec<Vec<u8>> = Vec::new();
+                recipients.push(public_key_bytes);
+                blockchain.hash_to_miners_who_received_the_block.insert(block_hash.clone(), recipients);
+            }
+        }
+
         for miner in self.connected_peers.iter() {
-            if blockchain.hash_to_miners_who_received_the_block[block_hash.clone()]
-                .contains(&miner.account_keys.get_public_key())
+            if blockchain.hash_to_miners_who_received_the_block[&block_hash]
+                .contains(&convert_public_key_to_bytes(&miner.account_keys.get_public_key()))
             {
                 continue;
             }

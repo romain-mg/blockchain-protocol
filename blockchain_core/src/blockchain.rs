@@ -2,7 +2,6 @@ pub mod account;
 pub mod block;
 pub mod utils;
 
-use defaultmap::DefaultHashMap;
 use std::collections::{HashMap, HashSet};
 
 pub use account::AccountKeys;
@@ -21,7 +20,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Blockchain {
     pub hash_to_block: HashMap<String, Block>,
-    pub hash_to_miner: HashMap<String, PublicKey>,
+    pub hash_to_miner: HashMap<String, Vec<u8>>,
     pub block_parent_map: HashMap<String, String>,
     pub parent_block_map: HashMap<String, String>,
     pub hash_to_cumulative_difficulty: HashMap<String, U256>,
@@ -35,7 +34,7 @@ pub struct Blockchain {
     pub current_longest_chain_latest_block_hash: String,
     pub blocks_between_difficulty_adjustment: u64,
     pub latest_n_block_timestamps: Vec<u64>,
-    pub hash_to_miners_who_received_the_block: DefaultHashMap<String, Vec<PublicKey>>,
+    pub hash_to_miners_who_received_the_block: HashMap<String, Vec<Vec<u8>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,7 +70,7 @@ impl Blockchain {
             current_longest_chain_latest_block_hash: String::from(""),
             blocks_between_difficulty_adjustment,
             latest_n_block_timestamps: Vec::new(),
-            hash_to_miners_who_received_the_block: DefaultHashMap::new(),
+            hash_to_miners_who_received_the_block: HashMap::new(),
         }
     }
 
@@ -81,7 +80,8 @@ impl Blockchain {
 
     pub fn add_block(&mut self, mut block: Block, miner_public_key: PublicKey) -> bool {
         let block_merkle_root = &block.header.merkle_root;
-        let recomputed_merkle_root = &MerkleTree::build_tree(&block.transactions.clone())
+        let deserialized_transactions = block.get_deseralized_transactions();
+        let recomputed_merkle_root = &MerkleTree::build_tree(&deserialized_transactions)
             .root
             .expect("Blockchain cannot add block: Merkle root is None")
             .value;
@@ -120,7 +120,7 @@ impl Blockchain {
             }
         }
         self.hash_to_miner
-            .insert(block_hash.clone(), miner_public_key.clone());
+            .insert(block_hash.clone(), convert_public_key_to_bytes(&miner_public_key));
         self.hash_to_block.insert(block_hash.clone(), block.clone());
         self.block_parent_map
             .insert(block_hash.clone(), block_prev_hash.clone());
@@ -256,10 +256,11 @@ impl Blockchain {
         let miner_public_key = self.hash_to_miner.get(block_hash).unwrap();
         let mut miner_account_balance = self
             .accounts
-            .get(&convert_public_key_to_bytes(&miner_public_key))
+            .get(miner_public_key)
             .unwrap()
             .balance;
-        for transaction in block.transactions.iter() {
+        let deserialized_transactions = block.get_deseralized_transactions();
+        for transaction in deserialized_transactions.iter() {
             let sender_public_key = &transaction.public_key_from;
             let sender_account = self
                 .accounts
@@ -287,7 +288,7 @@ impl Blockchain {
         }
         let miner_account = self
             .accounts
-            .get_mut(&convert_public_key_to_bytes(&miner_public_key))
+            .get_mut(miner_public_key)
             .unwrap();
         miner_account.balance = miner_account_balance + self.mining_reward;
         return true;
@@ -298,13 +299,18 @@ impl Blockchain {
             .hash_to_block
             .get(block_hash)
             .expect("Block does not exist.");
+        
         let miner_public_key = self.hash_to_miner.get(block_hash).unwrap();
+
         let mut miner_account_balance = self
             .accounts
-            .get(&convert_public_key_to_bytes(&miner_public_key))
+            .get(miner_public_key)
             .unwrap()
             .balance;
-        for transaction in block.transactions.iter() {
+
+        let deserialized_transactions = block.get_deseralized_transactions();
+
+        for transaction in deserialized_transactions.iter() {
             let sender_public_key = &transaction.public_key_from;
             let sender_account = self
                 .accounts
@@ -320,9 +326,10 @@ impl Blockchain {
             receiver_account_state.balance -= transaction.amount;
             miner_account_balance -= transaction.fee;
         }
+
         let miner_account = self
             .accounts
-            .get_mut(&convert_public_key_to_bytes(&miner_public_key))
+            .get_mut(miner_public_key)
             .unwrap();
         miner_account.balance = miner_account_balance - self.mining_reward;
         return true;
