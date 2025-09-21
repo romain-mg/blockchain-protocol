@@ -22,6 +22,7 @@ prost = "0.13.5"
 anyhow = "1.0.98"
 log = "0.4.27"
 env_logger = "0.11.8"
+serde_json_any_key = "2.0.0"
 
 [build-dependencies]
 tonic-build = "0.13.1"

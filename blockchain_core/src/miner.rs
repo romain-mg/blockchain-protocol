@@ -9,7 +9,7 @@ use crate::log;
 use k256::{ecdsa::{signature::Verifier, Signature, VerifyingKey}};
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
-use std::{time::SystemTime,  sync::MutexGuard};
+use std::{time::SystemTime,  sync::{Mutex, Arc}};
 use uint::FromStrRadixErr;
 
 
@@ -22,13 +22,12 @@ pub struct Miner {
 }
 
 impl Miner {
-    pub fn new(mut blockchain: MutexGuard<Blockchain>) -> Self {
+    pub fn new() -> Self {
         let miner = Miner {
             mempool: Vec::new(),
             account_keys: AccountKeys::new(),
             connected_peers: Vec::new(),
         };
-        blockchain.create_account(&miner.account_keys.get_public_key());
         miner
     }
 
@@ -104,9 +103,9 @@ impl Miner {
         }
     }
 
-    pub async fn compute_next_block(
+    pub fn compute_next_block(
         &mut self,
-        mut blockchain: MutexGuard<'_, Blockchain>,
+        blockchain: &mut Blockchain,
         parent_block_hash: String,
     ) -> Option<String> {
         let max_transaction_count_in_block: usize = blockchain.max_transactions_per_block;

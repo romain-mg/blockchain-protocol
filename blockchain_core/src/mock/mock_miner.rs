@@ -87,7 +87,7 @@ impl Miner {
         return true;
     }
 
-    pub async fn compute_next_block(
+    pub fn compute_next_block(
         &mut self,
         blockchain: &mut Blockchain,
         parent_block_hash: String,
@@ -131,7 +131,7 @@ impl Miner {
             } else {
                 self.mempool.clear();
             }
-            self.broadcast_block(block.clone(), blockchain).await;
+            self.broadcast_block(block.clone(), blockchain);
             return Some(Block::hash_header(&block.header));
         }
         return None;
@@ -178,7 +178,7 @@ impl Miner {
         miner
     }
 
-    pub async fn on_block_receive(&self, block: Block, blockchain: &mut Blockchain) {
+    pub fn on_block_receive(&self, block: Block, blockchain: &mut Blockchain) {
         if !self.validate_block(block.clone(), &blockchain) {
             return;
         }
@@ -227,7 +227,7 @@ impl Miner {
         self.connected_peers.push(connected_peer);
     }
 
-    pub async fn broadcast_block(&self, block: Block, blockchain: &mut Blockchain) {
+    pub fn broadcast_block(&self, block: Block, blockchain: &mut Blockchain) {
         let block_hash = Block::hash_header(&block.header);
         let miners_block_recipients = blockchain.hash_to_miners_who_received_the_block.get_mut(&block_hash);
         let public_key_bytes = convert_public_key_to_bytes(&self.account_keys.get_public_key());
@@ -253,7 +253,7 @@ impl Miner {
                 block,
                 miner.account_keys.get_public_key()
             );
-            miner.on_block_receive(block.clone(), blockchain).await;
+            miner.on_block_receive(block.clone(), blockchain);
         }
     }
 }

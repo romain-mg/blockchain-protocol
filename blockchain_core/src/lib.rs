@@ -6,7 +6,7 @@ pub mod rpc;
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Add;
+    use std::{ops::Add, sync::{Arc, Mutex}, thread, time::Duration};
 
     use crate::blockchain::{utils::convert_public_key_to_bytes, Blockchain};
     use crate::mock::mock_miner::{AccountKeys, Miner, Transaction};
@@ -66,7 +66,6 @@ mod tests {
 
         miner
             .compute_next_block(&mut blockchain, String::from(""))
-            .await
             .expect("Block must have been built");
         assert_eq!(sender_account.get_balance(&mut blockchain), U256::from(994));
         assert_eq!(receiver_account.get_balance(&mut blockchain), U256::from(3));
@@ -201,7 +200,6 @@ mod tests {
 
         let first_block_hash = miner
             .compute_next_block(&mut blockchain, String::from(""))
-            .await
             .unwrap();
 
         let transaction_3: Transaction = Transaction {
@@ -251,8 +249,7 @@ mod tests {
             .await;
 
         miner
-            .compute_next_block(&mut blockchain, first_block_hash.clone())
-            .await;
+            .compute_next_block(&mut blockchain, first_block_hash.clone());
         return (blockchain, first_block_hash);
     }
 
@@ -315,7 +312,6 @@ mod tests {
 
         let concurrent_block_hash = miner
             .compute_next_block(&mut blockchain, fork_block_hash)
-            .await
             .unwrap();
 
         let mut_sender = blockchain
@@ -356,7 +352,6 @@ mod tests {
 
         let dominant_block_hash = miner
             .compute_next_block(&mut blockchain, concurrent_block_hash)
-            .await
             .unwrap();
 
         return (blockchain, dominant_block_hash);
@@ -409,7 +404,6 @@ mod tests {
         let parent_hash = blockchain1.current_longest_chain_latest_block_hash.clone();
         let new_block_hash = miner1
             .compute_next_block(&mut blockchain1, parent_hash)
-            .await
             .expect("Block must be mined");
 
         // Retrieve the newly mined block from blockchain1.
@@ -420,7 +414,7 @@ mod tests {
 
         // --- Propagation Phase ---
         // Simulate network propagation: broadcast the block from miner1 to miner2's blockchain.
-        miner1.broadcast_block(new_block, &mut blockchain2).await;
+        miner1.broadcast_block(new_block, &mut blockchain2);
 
         // --- Verification Phase ---
         // Verify that miner2's blockchain now has the new block as its tip.
@@ -432,5 +426,39 @@ mod tests {
         // Verify that receiver's balance is updated in blockchain2.
         // In this transaction, receiver should receive 10 tokens.
         assert_eq!(blockchain2.get_balance(&receiver_pub), U256::from(10));
+    }
+
+    #[tokio::test]
+    async fn test_send_blockchain_multithreading() {
+        let (blockchain, _, mut miner, _, _) = setup();
+        let thread_safe_blockchain = Arc::new(Mutex::new(blockchain));
+        let miner_chain_reference = Arc::clone(&thread_safe_blockchain);
+
+        thread::spawn(move || {
+            let mut hash = String::from("");
+            
+            loop {           
+                {
+                let mut locked_miner_chain = miner_chain_reference.lock().expect("Lock to be acquired");
+                println!("Lock acquired by miner");
+                hash = miner.compute_next_block(&mut *locked_miner_chain, hash).expect("Next block to be computed"); 
+                }
+                thread::yield_now();
+            }   
+    });
+
+    for i in 0..5 {
+        {
+            let sync_chain_reference = Arc::clone(&thread_safe_blockchain);
+            let locked_sync_chain = sync_chain_reference.lock().expect("Lock to be acquired");
+            let serialized_blockchain = serde_json::to_string(&(*locked_sync_chain)).expect("Blockchain to be serialized");
+            println!("Lock acquired by main thread");
+            println!("Serialized blockchain from main thread: {:?} ", serialized_blockchain);
+        }
+        if i == 4 {
+            return;
+        }
+        thread::sleep(Duration::from_secs(1));
+    }
     }
 }

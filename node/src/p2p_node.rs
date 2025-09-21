@@ -1,5 +1,4 @@
-use anyhow::{Result, bail};
-use base64::prelude::*;
+use anyhow::{Result};
 use blockchain_core::{self, log};
 use futures::{
     channel::{mpsc, oneshot},
@@ -8,9 +7,8 @@ use futures::{
 };
 use libp2p::{
     PeerId,
-    bytes::BufMut,
-    identity::{self, Keypair},
-    kad::{store::MemoryStore, self}, noise,
+    identity::{self},
+    kad::{self}, noise,
     swarm::{NetworkBehaviour, StreamProtocol, SwarmEvent, Swarm},
     tcp, yamux,
     request_response::{self, OutboundRequestId, ProtocolSupport, ResponseChannel},
@@ -19,20 +17,13 @@ use libp2p::{
 };
 use std::{
     env,
-    num::NonZeroUsize,
-    ops::Add,
-    time::{Duration, Instant},
+    time::{Duration},
     collections::{hash_map, HashMap},
     error::Error,
 };
-use tracing_subscriber::EnvFilter;
 use serde::{Serialize, Deserialize};
-
-
-const BOOTNODE_ID: &str = "12D3KooWCxCPBaitzgsjvogRgcLEJ3i1CfHk5HhxUF3ykTg7fs2U";
-const BOOTNODE_MULTIADDR: &str =
-    "/ip4/192.168.12.37/tcp/4001/p2p/12D3KooWCxCPBaitzgsjvogRgcLEJ3i1CfHk5HhxUF3ykTg7fs2U";
-const PROTO_NAME: StreamProtocol = StreamProtocol::new("/blockchain/1.0.0");
+use base64::prelude::*;
+use dotenv::dotenv;
 
 /// Creates the network components, namely:
 ///
@@ -42,19 +33,25 @@ const PROTO_NAME: StreamProtocol = StreamProtocol::new("/blockchain/1.0.0");
 ///
 /// - The network task driving the network itself.
 pub(crate) async fn new(
+    bootnode:  Option<bool>,
     secret_key_seed: Option<u8>,
 ) -> Result<(Client, impl Stream<Item = Event>, EventLoop), Box<dyn Error>> {
     // Create a public/private key pair, either random or based on a seed.
-    let id_keys = match secret_key_seed {
-        Some(seed) => {
+    dotenv().ok();
+    let id_keys = match (secret_key_seed, bootnode) {
+        (Some(seed), _) => {
             let mut bytes = [0u8; 32];
             bytes[0] = seed;
             identity::Keypair::ed25519_from_bytes(bytes).unwrap()
-        }
-        None => identity::Keypair::generate_ed25519(),
-    };
+        },
+      ( None, Some(true)) => {
+        let encoded_keys = env::var("BOOTSTRAP_NODE_KEYS").expect("keys not found");
+        let decoded = BASE64_STANDARD.decode(&encoded_keys).expect("invalid base64");
+        identity::Keypair::from_protobuf_encoding(&decoded).unwrap()
+      },
+      _ =>  identity::Keypair::generate_ed25519()
+};
     let peer_id = id_keys.public().to_peer_id();
-
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(id_keys)
         .with_tokio()
         .with_tcp(
@@ -137,6 +134,7 @@ impl Client {
         peer: PeerId,
     ) -> Result<Vec<u8>, Box<dyn Error + Send>> {
         let (sender, receiver) = oneshot::channel();
+        log::info!("Sending command to request to blockchain sync");
         self.sender
             .send(Command::RequestBlockchainSync {
                 peer,
@@ -152,6 +150,7 @@ impl Client {
         serialized_blockchain: Vec<u8>,
         channel: ResponseChannel<BlockchainSyncResponse>,
     ) {
+        log::info!("Sending command to respond to blockchain sync request");
         self.sender
             .send(Command::RespondBlockchainSync { serialized_blockchain, channel })
             .await
@@ -206,9 +205,9 @@ impl EventLoop {
                 request_response::Message::Request {
                channel, ..
                 } => {
+                    log::info!("Received event for inbound request");
                     self.event_sender
                         .send(Event::InboundRequest {
-                            request: String::from("blockchain sync request"),
                             channel,
                         })
                         .await
@@ -218,6 +217,7 @@ impl EventLoop {
                     request_id,
                     response,
                 } => {
+                    eprintln!("Received event for response: {:?}", response);
                     let _ = self
                         .pending_request_blockchain_sync
                         .remove(&request_id)
@@ -230,6 +230,7 @@ impl EventLoop {
                     request_id, error, ..
                 },
             )) => {
+                log::error!("Received event for outbound failure: {:?}", error);
                 let _ = self
                     .pending_request_blockchain_sync
                     .remove(&request_id)
@@ -238,7 +239,9 @@ impl EventLoop {
             }
             SwarmEvent::Behaviour(BehaviourEvent::RequestResponse(
                 request_response::Event::ResponseSent { .. },
-            )) => {}
+            )) => {
+                log::info!("Received event for response sent");
+            }
             SwarmEvent::NewListenAddr { address, .. } => {
                 let local_peer_id = *self.swarm.local_peer_id();
                 log::info!(
@@ -307,6 +310,7 @@ impl EventLoop {
                 peer,
                 sender,
             } => {
+                log::info!("Sending blockchain sync request from command");
                 let request_id = self
                     .swarm
                     .behaviour_mut()
@@ -315,6 +319,7 @@ impl EventLoop {
                 self.pending_request_blockchain_sync.insert(request_id, sender);
             }
             Command::RespondBlockchainSync { serialized_blockchain, channel } => {
+                log::info!("Sending blockchain sync response from command");
                 self.swarm
                     .behaviour_mut()
                     .request_response // SAME
@@ -356,7 +361,6 @@ struct Behaviour {
 #[derive(Debug)]
 pub(crate) enum Event {
     InboundRequest {
-        request: String,
         channel: ResponseChannel<BlockchainSyncResponse>,
     },
 }
@@ -366,132 +370,3 @@ pub(crate) enum Event {
 struct BlockchainSyncRequest();
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct BlockchainSyncResponse(Vec<u8>);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-pub async fn start_node() -> Result<()> {
-    log::info!("Starting p2p node");
-    let key_pair = identity::Keypair::generate_ed25519();
-    launch_swarm(key_pair, false).await
-}
-
-pub async fn start_bootstrap_node() -> Result<()> {
-    log::info!("Starting bootstrap p2p node");
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .try_init();
-
-    let encoded_bootstrap_node_keys = env::var("BOOTSTRAP_NODE_KEYS").expect("keys not found");
-    let decoded: Vec<u8> = BASE64_STANDARD
-        .decode(&encoded_bootstrap_node_keys)
-        .expect("invalid base64");
-    let decoded_keys = identity::Keypair::from_protobuf_encoding(&decoded).unwrap();
-    let bootnode_id = decoded_keys.public().to_peer_id().to_base58();
-    if &bootnode_id != BOOTNODE_ID {
-        panic!("Wrong bootnode ID");
-    }
-    launch_swarm(decoded_keys, true).await
-}
-
-async fn launch_swarm(
-    key_pair: Keypair,
-    bootstrap: bool,
-) -> Result<()> {
-    let mut swarm = libp2p::SwarmBuilder::with_existing_identity(key_pair.clone())
-        .with_tokio()
-        .with_tcp(
-            tcp::Config::default(),
-            noise::Config::new,
-            yamux::Config::default,
-        )?
-        .with_dns()?
-        .with_behaviour(|key_pair| {
-            // Create a Kademlia behaviour.
-            let mut cfg = kad::Config::new(PROTO_NAME);
-            cfg.set_query_timeout(Duration::from_secs(5 * 60));
-            let store = kad::store::MemoryStore::new(key_pair.public().to_peer_id());
-            kad::Behaviour::with_config(key_pair.public().to_peer_id(), store, cfg)
-        })?
-        .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(u64::MAX))) // Allows us to observe pings indefinit
-        .build();
-    if bootstrap {
-        swarm.behaviour_mut().set_mode(Some(kad::Mode::Server));
-        swarm.listen_on(BOOTNODE_MULTIADDR.parse()?)?;
-    } else {
-        // problem it works even with garbage address so no real guarantee that it works
-        if let kad::RoutingUpdate::Success = swarm
-            .behaviour_mut()
-            .add_address(&BOOTNODE_ID.parse()?, BOOTNODE_MULTIADDR.parse()?)
-        {
-            log::info!("Bootnode added to the routing table");
-        } else {
-            bail!("Failed to add bootnode to the routing table");
-        }
-        swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-        if let Err(no_known_peers) = swarm.behaviour_mut().bootstrap() {
-            log::error!("Failed to bootstrap: no known peers");
-            return Err(no_known_peers.into());
-        } else {
-            log::info!("Bootstrapped successfully");
-        }
-    }
-
-    swarm.behaviour_mut().set_mode(Some(kad::Mode::Server));
-
-    loop {
-        let event = swarm.select_next_some().await;
-        match event {
-            SwarmEvent::Behaviour(kad::Event::OutboundQueryProgressed {
-                result: kad::QueryResult::GetClosestPeers(Ok(ok)),
-                ..
-            }) => {
-                if ok.peers.is_empty() {
-                    bail!("Query finished with no closest peers.")
-                }
-
-                log::info!("Query finished with closest peers: {:#?}", ok.peers);
-
-                return Ok(());
-            }
-            SwarmEvent::Behaviour(kad::Event::OutboundQueryProgressed {
-                result:
-                    kad::QueryResult::GetClosestPeers(Err(kad::GetClosestPeersError::Timeout {
-                        ..
-                    })),
-                ..
-            }) => {
-                bail!("Query for closest peers timed out")
-            }
-            SwarmEvent::Behaviour(kad::Event::OutboundQueryProgressed {
-                result: kad::QueryResult::PutRecord(Ok(_)),
-                ..
-            }) => {
-                log::info!("Successfully inserted the PK record");
-
-                return Ok(());
-            }
-            SwarmEvent::Behaviour(kad::Event::OutboundQueryProgressed {
-                result: kad::QueryResult::PutRecord(Err(err)),
-                ..
-            }) => {
-                bail!(anyhow::Error::new(err).context("Failed to insert the PK record"));
-            }
-            _ => {}
-        }
-    }
-}
