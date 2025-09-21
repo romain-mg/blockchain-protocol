@@ -44,7 +44,6 @@
             "args": [
         "--sync",
         "true",
-        "---peer",
          "/ip_address/bootnode_id",
     ],
             "cwd": "${workspaceFolder}"

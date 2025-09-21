@@ -61,16 +61,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         log::info!("Dialed with bootnode at {:?}", BOOTNODE_MULTIADDR);
     }
 
-    // In case the user provided an address of a peer on the CLI, dial it.
-    if let Some(addr) = opt.peer {
-        let Some(Protocol::P2p(peer_id)) = addr.iter().last() else {
-            return Err("Expect peer multiaddr to contain peer ID.".into());
-        };
-        node_client
-            .dial(peer_id, addr)
-            .await
-            .expect("Dial to succeed");
-    }
 
     if let Some(true) = opt.bootnode {
         let difficulty_divisor: i32 = 20000;

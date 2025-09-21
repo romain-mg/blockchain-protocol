@@ -1,4 +1,4 @@
-### blockchain-protocol
+## blockchain-protocol
 
 A Rust workspace featuring:
 - A fully-featured in-memory Proof-of-Work blockchain with mempool, transaction validation, block production, dynamic difficulty, and chain reorg to the longest chain by cumulative difficulty.
@@ -35,10 +35,6 @@ A Rust workspace featuring:
   - Syncing nodes dial the bootnode and request the serialized blockchain (JSON) in one shot.
   - Mining is temporarily paused while serving a sync to avoid prolonged lock contention.
 
-### Prerequisites
-
-- Rust toolchain (stable).
-- Optional: `.env` for node with `BOOTSTRAP_NODE_KEYS` if you want a fixed bootnode PeerId (see below).
 
 ### Run the tests (core)
 
@@ -56,49 +52,21 @@ There are two roles:
 - Bootnode: mines blocks and serves blockchain sync to peers.
 - Sync node: dials the bootnode and downloads the blockchain.
 
-Important constants in `node/src/main.rs`:
-- `BOOTNODE_ID`: the expected PeerId of the bootnode.
-- `BOOTNODE_MULTIADDR`: the multiaddr (with `/p2p/<peer-id>`) the bootnode listens on and peers dial.
 
-You can either:
-- Make the bootnode use keys that match the `BOOTNODE_ID` you set, or
-- Update those constants after you see what ID/address your bootnode actually uses.
+- Open two terminals.
+- Terminal 1 (bootnode):
+  - Edit `BOOTNODE_MULTIADDR` to a reachable IP/port (e.g., your LAN IP).
+  - Run: `cargo run -p node -- --bootnode true --secret-key-seed 1`
 
-#### Option A: Fixed bootnode ID via environment key
-
-Set `BOOTSTRAP_NODE_KEYS` to a base64-encoded libp2p keypair (protobuf-encoded). This ensures the bootnode uses a stable PeerId that matches `BOOTNODE_ID`.
-
-Example `.env` (fill with your base64-encoded key):
-- `BOOTSTRAP_NODE_KEYS=<base64 protobuf keypair>`
-
-Then run:
-
-- Bootnode (Terminal 1):
-  - `cargo run -p node -- --bootnode true`
-  - The bootnode will listen on `BOOTNODE_MULTIADDR`. Ensure the IP/port is reachable from peers.
-
-- Sync node (Terminal 2):
+- Terminal 2 (sync node):
   - `cargo run -p node -- --sync true`
-  - The node dials `BOOTNODE_ID` at `BOOTNODE_MULTIADDR`, requests the blockchain, and logs the received chain.
+  - You should see the blockchain printed after sync completes.
 
-Note: If your environment key does not correspond to the hardcoded `BOOTNODE_ID`, update the constants in `node/src/main.rs` to the ID printed by the bootnode at startup.
+Optionally, set the `BOOTSTRAP_NODE_KEYS` environment variable to a base64-encoded libp2p keypair (protobuf-encoded). If the bootnode’s printed PeerId or address differs from the hardcoded values in `node/src/main.rs`, update:
+- `BOOTNODE_ID`: the bootnode’s PeerId.
+- `BOOTNODE_MULTIADDR`: the full listen `Multiaddr`, including `/p2p/<peer-id>`.
 
-#### Option B: Derive a new ID, then update constants
 
-1) Start the bootnode with a deterministic seed so you can reproduce the same PeerId:
-- `cargo run -p node -- --bootnode true --secret-key-seed 1`
-- Observe the log line:
-  - “Local node is listening on /ip4/…/tcp/<port>/p2p/<peer-id>”
-
-2) Copy the printed `<peer-id>` and listening multiaddr into:
-- `BOOTNODE_ID`
-- `BOOTNODE_MULTIADDR`
-in `node/src/main.rs`, then rebuild.
-
-3) Start the sync node:
-- `cargo run -p node -- --sync true`
-
-This path avoids needing `BOOTSTRAP_NODE_KEYS`; you just align the constants with the ID/address you observed.
 
 ### CLI flags (node)
 
@@ -106,20 +74,4 @@ This path avoids needing `BOOTSTRAP_NODE_KEYS`; you just align the constants wit
 - `--sync <bool>`: When true, dials the bootnode and requests a chain sync.
 - `--secret-key-seed <u8>`: Deterministic keypair for stable PeerId (overrides env/bootnode key path).
 - `--listen-address <Multiaddr>`: Listening address (ignored when `--bootnode true`, which uses `BOOTNODE_MULTIADDR` constant).
-- `--peer <Multiaddr>`: Optional extra peer to dial. The sync path still uses `BOOTNODE_ID/BOOTNODE_MULTIADDR` for the actual sync request.
 
-
-### Getting started quickly
-
-- Open two terminals.
-- Terminal 1 (bootnode):
-  - Edit `BOOTNODE_MULTIADDR` to a reachable IP/port (e.g., your LAN IP).
-  - Run: `cargo run -p node -- --bootnode true --secret-key-seed 1`
-  - Copy the printed PeerId/multiaddr.
-  - Update `BOOTNODE_ID` and `BOOTNODE_MULTIADDR` in `node/src/main.rs` to match.
-  - Rebuild: `cargo build -p node`
-  - Run again.
-
-- Terminal 2 (sync node):
-  - `cargo run -p node -- --sync true`
-  - You should see the blockchain printed after sync completes.
