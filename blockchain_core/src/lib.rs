@@ -3,14 +3,10 @@ pub mod log;
 pub mod miner;
 pub mod mock;
 pub mod rpc;
-pub const SERVER_ADDR: &str = "127.0.0.1:10162";
-pub const P2P_SERVER_ADDR: &str = "127.0.0.1:10163";
-pub const SECONDARY_SERVER_ADDR: &str = "127.0.0.1:10164";
-pub const SECONDARY_P2P_SERVER_ADDR: &str = "127.0.0.1:10165";
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Add;
+    use std::{ops::Add, sync::{Arc, Mutex}, thread, time::Duration};
 
     use crate::blockchain::{utils::convert_public_key_to_bytes, Blockchain};
     use crate::mock::mock_miner::{AccountKeys, Miner, Transaction};
@@ -31,6 +27,7 @@ mod tests {
             fee: U256::from(1),
             nonce: 0,
         };
+        let serialized_transaction_0 = transaction_0.serialize();
 
         let signature_0: Signature = sender_account.sign_transaction(&transaction_0);
 
@@ -42,6 +39,8 @@ mod tests {
             nonce: 1,
         };
 
+        let serialized_transaction_1 = transaction_1.serialize();
+
         let signature_1: Signature = sender_account.sign_transaction(&transaction_1);
 
         let transaction_2: Transaction = Transaction {
@@ -52,20 +51,21 @@ mod tests {
             nonce: 2,
         };
 
+        let serialized_transaction_2 = transaction_2.serialize();
+
         let signature_2: Signature = sender_account.sign_transaction(&transaction_2);
         network
-            .send_transaction(transaction_0, &signature_0, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_0, &signature_0, &mut miner, &mut blockchain)
             .await;
         network
-            .send_transaction(transaction_1, &signature_1, &mut miner, &mut blockchain)
+                .send_transaction(serialized_transaction_1, &signature_1, &mut miner, &mut blockchain)
             .await;
         network
-            .send_transaction(transaction_2, &signature_2, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_2, &signature_2, &mut miner, &mut blockchain)
             .await;
 
         miner
             .compute_next_block(&mut blockchain, String::from(""))
-            .await
             .expect("Block must have been built");
         assert_eq!(sender_account.get_balance(&mut blockchain), U256::from(994));
         assert_eq!(receiver_account.get_balance(&mut blockchain), U256::from(3));
@@ -119,12 +119,12 @@ mod tests {
         let difficulty: U256 = U256::MAX / difficulty_divisor;
         let target_duration_between_blocks = 5;
         let max_transactions_per_block = 3;
-        let blocks_between_deifficulty_adjustment = 10;
+        let blocks_between_difficulty_adjustment = 10;
         let mut blockchain: Blockchain = Blockchain::create_blockchain(
             difficulty,
             target_duration_between_blocks,
             max_transactions_per_block,
-            blocks_between_deifficulty_adjustment,
+            blocks_between_difficulty_adjustment,
         );
 
         let miner: Miner = Miner::new(&mut blockchain, Network::new());
@@ -160,6 +160,8 @@ mod tests {
             nonce: 0,
         };
 
+        let serialized_transaction_0 = transaction_0.serialize();
+
         let signature_0: Signature = sender_account.sign_transaction(&transaction_0);
 
         let transaction_1: Transaction = Transaction {
@@ -169,6 +171,8 @@ mod tests {
             fee: U256::from(1),
             nonce: 1,
         };
+
+        let serialized_transaction_1 = transaction_1.serialize();
 
         let signature_1: Signature = sender_account.sign_transaction(&transaction_1);
 
@@ -180,21 +184,22 @@ mod tests {
             nonce: 2,
         };
 
+        let serialized_transaction_2 = transaction_2.serialize();
+
         let signature_2: Signature = sender_account.sign_transaction(&transaction_2);
 
         network
-            .send_transaction(transaction_0, &signature_0, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_0, &signature_0, &mut miner, &mut blockchain)
             .await;
         network
-            .send_transaction(transaction_1, &signature_1, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_1, &signature_1, &mut miner, &mut blockchain)
             .await;
         network
-            .send_transaction(transaction_2, &signature_2, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_2, &signature_2, &mut miner, &mut blockchain)
             .await;
 
         let first_block_hash = miner
             .compute_next_block(&mut blockchain, String::from(""))
-            .await
             .unwrap();
 
         let transaction_3: Transaction = Transaction {
@@ -204,6 +209,8 @@ mod tests {
             fee: U256::from(1),
             nonce: 3,
         };
+
+        let serialized_transaction_3 = transaction_3.serialize();
 
         let signature_3: Signature = sender_account.sign_transaction(&transaction_3);
 
@@ -215,6 +222,8 @@ mod tests {
             nonce: 4,
         };
 
+        let serialized_transaction_4 = transaction_4.serialize();
+
         let signature_4: Signature = sender_account.sign_transaction(&transaction_4);
 
         let transaction_5: Transaction = Transaction {
@@ -225,21 +234,22 @@ mod tests {
             nonce: 5,
         };
 
+        let serialized_transaction_5 = transaction_5.serialize();
+
         let signature_5: Signature = sender_account.sign_transaction(&transaction_5);
 
         network
-            .send_transaction(transaction_3, &signature_3, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_3, &signature_3, &mut miner, &mut blockchain)
             .await;
         network
-            .send_transaction(transaction_4, &signature_4, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_4, &signature_4, &mut miner, &mut blockchain)
             .await;
         network
-            .send_transaction(transaction_5, &signature_5, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_5, &signature_5, &mut miner, &mut blockchain)
             .await;
 
         miner
-            .compute_next_block(&mut blockchain, first_block_hash.clone())
-            .await;
+            .compute_next_block(&mut blockchain, first_block_hash.clone());
         return (blockchain, first_block_hash);
     }
 
@@ -262,6 +272,8 @@ mod tests {
             nonce: 3,
         };
 
+        let serialized_transaction_3 = transaction_3.serialize();
+
         let signature_3: Signature = sender_account.sign_transaction(&transaction_3);
 
         let transaction_4: Transaction = Transaction {
@@ -271,6 +283,8 @@ mod tests {
             fee: U256::from(2),
             nonce: 4,
         };
+
+        let serialized_transaction_4 = transaction_4.serialize();
 
         let signature_4: Signature = sender_account.sign_transaction(&transaction_4);
 
@@ -282,21 +296,22 @@ mod tests {
             nonce: 5,
         };
 
+        let serialized_transaction_5 = transaction_5.serialize();
+
         let signature_5: Signature = sender_account.sign_transaction(&transaction_5);
 
         network
-            .send_transaction(transaction_3, &signature_3, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_3, &signature_3, &mut miner, &mut blockchain)
             .await;
         network
-            .send_transaction(transaction_4, &signature_4, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_4, &signature_4, &mut miner, &mut blockchain)
             .await;
         network
-            .send_transaction(transaction_5, &signature_5, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_5, &signature_5, &mut miner, &mut blockchain)
             .await;
 
         let concurrent_block_hash = miner
             .compute_next_block(&mut blockchain, fork_block_hash)
-            .await
             .unwrap();
 
         let mut_sender = blockchain
@@ -312,6 +327,8 @@ mod tests {
             nonce: 6,
         };
 
+        let serialized_transaction_6 = transaction_6.serialize();
+
         let signature_6: Signature = sender_account.sign_transaction(&transaction_6);
 
         let transaction_7: Transaction = Transaction {
@@ -322,18 +339,19 @@ mod tests {
             nonce: 7,
         };
 
+        let serialized_transaction_7 = transaction_7.serialize();
+
         let signature_7: Signature = sender_account.sign_transaction(&transaction_7);
 
         network
-            .send_transaction(transaction_6, &signature_6, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_6, &signature_6, &mut miner, &mut blockchain)
             .await;
         network
-            .send_transaction(transaction_7, &signature_7, &mut miner, &mut blockchain)
+            .send_transaction(serialized_transaction_7, &signature_7, &mut miner, &mut blockchain)
             .await;
 
         let dominant_block_hash = miner
             .compute_next_block(&mut blockchain, concurrent_block_hash)
-            .await
             .unwrap();
 
         return (blockchain, dominant_block_hash);
@@ -372,18 +390,20 @@ mod tests {
             fee: U256::from(1),
             nonce: 0,
         };
+
+        let serialized_transaction = transaction.serialize();
+
         let signature: Signature = sender_account.sign_transaction(&transaction);
 
         // Add the transaction to miner1's mempool (which is part of blockchain1).
         network
-            .send_transaction(transaction, &signature, &mut miner1, &mut blockchain1)
+            .send_transaction(serialized_transaction, &signature, &mut miner1, &mut blockchain1)
             .await;
 
         // Miner1 mines a block on its blockchain.
         let parent_hash = blockchain1.current_longest_chain_latest_block_hash.clone();
         let new_block_hash = miner1
             .compute_next_block(&mut blockchain1, parent_hash)
-            .await
             .expect("Block must be mined");
 
         // Retrieve the newly mined block from blockchain1.
@@ -394,7 +414,7 @@ mod tests {
 
         // --- Propagation Phase ---
         // Simulate network propagation: broadcast the block from miner1 to miner2's blockchain.
-        miner1.broadcast_block(new_block, &mut blockchain2).await;
+        miner1.broadcast_block(new_block, &mut blockchain2);
 
         // --- Verification Phase ---
         // Verify that miner2's blockchain now has the new block as its tip.
@@ -406,5 +426,39 @@ mod tests {
         // Verify that receiver's balance is updated in blockchain2.
         // In this transaction, receiver should receive 10 tokens.
         assert_eq!(blockchain2.get_balance(&receiver_pub), U256::from(10));
+    }
+
+    #[tokio::test]
+    async fn test_send_blockchain_multithreading() {
+        let (blockchain, _, mut miner, _, _) = setup();
+        let thread_safe_blockchain = Arc::new(Mutex::new(blockchain));
+        let miner_chain_reference = Arc::clone(&thread_safe_blockchain);
+
+        thread::spawn(move || {
+            let mut hash = String::from("");
+            
+            loop {           
+                {
+                let mut locked_miner_chain = miner_chain_reference.lock().expect("Lock to be acquired");
+                println!("Lock acquired by miner");
+                hash = miner.compute_next_block(&mut *locked_miner_chain, hash).expect("Next block to be computed"); 
+                }
+                thread::yield_now();
+            }   
+    });
+
+    for i in 0..5 {
+        {
+            let sync_chain_reference = Arc::clone(&thread_safe_blockchain);
+            let locked_sync_chain = sync_chain_reference.lock().expect("Lock to be acquired");
+            let serialized_blockchain = serde_json::to_string(&(*locked_sync_chain)).expect("Blockchain to be serialized");
+            println!("Lock acquired by main thread");
+            println!("Serialized blockchain from main thread: {:?} ", serialized_blockchain);
+        }
+        if i == 4 {
+            return;
+        }
+        thread::sleep(Duration::from_secs(1));
+    }
     }
 }

@@ -11,7 +11,13 @@ blockchain_core = { path = "../blockchain_core" }
 clap = { version = "4.5.39", features = ["derive"] }
 dotenv = "0.15.0"
 futures = "0.3.31"
-libp2p = { version = "0.56.0", features = ["noise", "kad", "tcp", "tokio", "yamux", "dns"] }
+libp2p = { version = "0.56.0", features = ["full"] }
+primitive-types = "0.13.1"
+serde = "1.0.219"
 tokio = { version = "1.45.1", features = ["full"] }
 tonic = "0.13.1"
 tracing-subscriber = {version = "0.3.19", features = ["env-filter"] }
+k256 = {version = "0.13.4" }
+rand = "0.8.5"   
+serde_json = "1.0.143"
+

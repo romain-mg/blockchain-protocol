@@ -5,24 +5,24 @@ edition = "2021"
 
 [dependencies]
 sha256 = "1.5.0"
-primitive-types = { version = "0.13.1", features = ["serde_no_std"]  }
+primitive-types = { version = "0.13.1", features = ["serde_no_std"] }
 rustc-hex = "2.1.0"
 uint = "0.10.0"
-k256 = "0.13.4"
+k256 = {version = "0.13.4", features = ["serde"] }
+elliptic-curve = { version = ">=0.13, <0.14", features = ["sec1"] }
 rand = "0.8.5"   
 multimap = "0.10.0"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"]  }
 serde_json = "1.0"
-defaultmap = "0.6.0"
-tokio = {version = "1.45.0", features = ["full"] }
+defaultmap = { version = "0.6.0", features = ["with-serde"] }
+tokio = { version = "1.45.0", features = ["full"] }
 rayon = "1.10.0"
 tonic = "0.13.1"
 prost = "0.13.5"
 anyhow = "1.0.98"
 log = "0.4.27"
 env_logger = "0.11.8"
-
-
+serde_json_any_key = "2.0.0"
 
 [build-dependencies]
 tonic-build = "0.13.1"

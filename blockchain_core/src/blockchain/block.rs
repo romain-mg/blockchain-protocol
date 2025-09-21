@@ -1,8 +1,10 @@
 use super::utils::convert_transaction_to_string;
-use k256::ecdsa::VerifyingKey;
+use k256::{PublicKey};
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use sha256::digest;
+use serde_json;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Header {
@@ -13,19 +15,29 @@ pub struct Header {
     pub merkle_root: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
     pub header: Header,
-    pub transactions: Vec<Transaction>,
+    pub transactions: Vec<Vec<u8>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transaction {
-    pub public_key_from: VerifyingKey,
-    pub public_key_to: VerifyingKey,
+    pub public_key_from: PublicKey,
+    pub public_key_to: PublicKey,
     pub amount: U256,
     pub fee: U256,
     pub nonce: u128,
+}
+
+impl Transaction {
+    pub fn serialize(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("Transaction to be serialized")
+    }
+
+    pub fn deseralize(serialized_tx: &[u8]) -> Self {
+        serde_json::from_slice(serialized_tx).expect("Transaction to be deserialized")
+    }
 }
 
 impl Block {
@@ -52,9 +64,14 @@ impl Block {
             merkle_root: block_merkle_root,
         };
 
+        let mut serialized_transactions: Vec<Vec<u8>>  = vec![];
+        for transaction in transactions.iter() {
+            serialized_transactions.push(transaction.serialize());
+        }
+
         Self {
             header,
-            transactions: transactions.clone(),
+            transactions: serialized_transactions
         }
     }
 
@@ -67,6 +84,14 @@ impl Block {
         hash_string.push_str(&header.merkle_root);
 
         digest(hash_string)
+    }
+
+    pub fn get_deseralized_transactions(&self) -> Vec<Transaction> {
+        let mut deserialized_transactions: Vec<Transaction>  = vec![];
+        for transaction in self.transactions.iter() {
+        deserialized_transactions.push(Transaction::deseralize(transaction));
+    }
+        deserialized_transactions
     }
 }
 
@@ -95,7 +120,12 @@ pub struct MerkleTree {
 impl MerkleTree {
     pub fn build_tree(transactions: &Vec<Transaction>) -> Self {
         if transactions.is_empty() {
-            return Self { root: None };
+            let defaultRoot = MerkleNode {
+                left: None,
+                right: None,
+                value: String::from("")
+            };
+            return Self { root: Some(Box::new(defaultRoot)) };
         }
         let mut nodes: Vec<MerkleNode> = transactions
             .iter()

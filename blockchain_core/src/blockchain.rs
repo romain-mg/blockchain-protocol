@@ -2,23 +2,25 @@ pub mod account;
 pub mod block;
 pub mod utils;
 
-use defaultmap::DefaultHashMap;
 use std::collections::{HashMap, HashSet};
 
 pub use account::AccountKeys;
 use block::MerkleTree;
 pub use block::{Block, Header, Transaction};
-use k256::ecdsa::VerifyingKey;
+use k256::{PublicKey};
 use log;
 use multimap::MultiMap;
 use primitive_types::U256;
 use uint::FromStrRadixErr;
 use utils::convert_public_key_to_bytes;
+use k256::elliptic_curve::sec1::ToEncodedPoint; 
+use serde::{Serialize, Deserialize};
+use serde_json_any_key::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Blockchain {
     pub hash_to_block: HashMap<String, Block>,
-    pub hash_to_miner: HashMap<String, VerifyingKey>,
+    pub hash_to_miner: HashMap<String, Vec<u8>>,
     pub block_parent_map: HashMap<String, String>,
     pub parent_block_map: HashMap<String, String>,
     pub hash_to_cumulative_difficulty: HashMap<String, U256>,
@@ -27,15 +29,16 @@ pub struct Blockchain {
     pub target_duration_between_blocks: u64,
     pub latest_block_timestamp: u64,
     pub max_transactions_per_block: usize,
-    pub accounts: HashMap<[u8; 33], AccountState>,
+    #[serde(with = "any_key_map")]
+    pub accounts: HashMap<Vec<u8>, AccountState>,
     pub mining_reward: U256,
     pub current_longest_chain_latest_block_hash: String,
     pub blocks_between_difficulty_adjustment: u64,
     pub latest_n_block_timestamps: Vec<u64>,
-    pub hash_to_miners_who_received_the_block: DefaultHashMap<String, Vec<VerifyingKey>>,
+    pub hash_to_miners_who_received_the_block: HashMap<String, Vec<Vec<u8>>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountState {
     pub balance: U256,
     pub nonce: u128,
@@ -68,7 +71,7 @@ impl Blockchain {
             current_longest_chain_latest_block_hash: String::from(""),
             blocks_between_difficulty_adjustment,
             latest_n_block_timestamps: Vec::new(),
-            hash_to_miners_who_received_the_block: DefaultHashMap::new(),
+            hash_to_miners_who_received_the_block: HashMap::new(),
         }
     }
 
@@ -76,9 +79,15 @@ impl Blockchain {
         self.hash_to_block.get(hash)
     }
 
-    pub fn add_block(&mut self, mut block: Block, miner_public_key: VerifyingKey) -> bool {
+    pub fn add_block(&mut self, mut block: Block, miner_public_key: PublicKey) -> bool {
+        // create account for miner of needed
+        if self.get_account(&miner_public_key).is_none() {
+            self.create_account(&miner_public_key);
+        }
+
         let block_merkle_root = &block.header.merkle_root;
-        let recomputed_merkle_root = &MerkleTree::build_tree(&block.transactions.clone())
+        let deserialized_transactions = block.get_deseralized_transactions();
+        let recomputed_merkle_root = &MerkleTree::build_tree(&deserialized_transactions)
             .root
             .expect("Blockchain cannot add block: Merkle root is None")
             .value;
@@ -117,7 +126,7 @@ impl Blockchain {
             }
         }
         self.hash_to_miner
-            .insert(block_hash.clone(), miner_public_key.clone());
+            .insert(block_hash.clone(), convert_public_key_to_bytes(&miner_public_key));
         self.hash_to_block.insert(block_hash.clone(), block.clone());
         self.block_parent_map
             .insert(block_hash.clone(), block_prev_hash.clone());
@@ -157,13 +166,13 @@ impl Blockchain {
         self.difficulty = new_difficulty;
     }
 
-    pub fn get_account(&self, public_key: &VerifyingKey) -> Option<&AccountState> {
+    pub fn get_account(&self, public_key: &PublicKey) -> Option<&AccountState> {
         let encoded_public_key = public_key.to_encoded_point(true);
         let public_key_bytes = encoded_public_key.as_bytes();
         self.accounts.get(public_key_bytes)
     }
 
-    pub fn get_balance(&mut self, public_key: &VerifyingKey) -> U256 {
+    pub fn get_balance(&mut self, public_key: &PublicKey) -> U256 {
         let account = self.get_account(public_key);
         if account.is_some() {
             account.unwrap().balance
@@ -173,17 +182,17 @@ impl Blockchain {
         }
     }
 
-    pub fn create_account(&mut self, public_key: &VerifyingKey) -> &AccountState {
+    pub fn create_account(&mut self, public_key: &PublicKey) -> &AccountState {
         let public_key_bytes = convert_public_key_to_bytes(public_key);
         let new_account: AccountState = AccountState {
             balance: U256::zero(),
             nonce: 0,
         };
-        self.accounts.insert(public_key_bytes, new_account);
+        self.accounts.insert(public_key_bytes.clone(), new_account);
         &self.accounts[&public_key_bytes]
     }
 
-    pub fn mint(&mut self, public_key: &VerifyingKey, amount: U256) {
+    pub fn mint(&mut self, public_key: &PublicKey, amount: U256) {
         let _account = self
             .accounts
             .get_mut(&convert_public_key_to_bytes(public_key));
@@ -253,10 +262,11 @@ impl Blockchain {
         let miner_public_key = self.hash_to_miner.get(block_hash).unwrap();
         let mut miner_account_balance = self
             .accounts
-            .get(&convert_public_key_to_bytes(&miner_public_key))
+            .get(miner_public_key)
             .unwrap()
             .balance;
-        for transaction in block.transactions.iter() {
+        let deserialized_transactions = block.get_deseralized_transactions();
+        for transaction in deserialized_transactions.iter() {
             let sender_public_key = &transaction.public_key_from;
             let sender_account = self
                 .accounts
@@ -284,7 +294,7 @@ impl Blockchain {
         }
         let miner_account = self
             .accounts
-            .get_mut(&convert_public_key_to_bytes(&miner_public_key))
+            .get_mut(miner_public_key)
             .unwrap();
         miner_account.balance = miner_account_balance + self.mining_reward;
         return true;
@@ -295,13 +305,18 @@ impl Blockchain {
             .hash_to_block
             .get(block_hash)
             .expect("Block does not exist.");
+        
         let miner_public_key = self.hash_to_miner.get(block_hash).unwrap();
+
         let mut miner_account_balance = self
             .accounts
-            .get(&convert_public_key_to_bytes(&miner_public_key))
+            .get(miner_public_key)
             .unwrap()
             .balance;
-        for transaction in block.transactions.iter() {
+
+        let deserialized_transactions = block.get_deseralized_transactions();
+
+        for transaction in deserialized_transactions.iter() {
             let sender_public_key = &transaction.public_key_from;
             let sender_account = self
                 .accounts
@@ -317,9 +332,10 @@ impl Blockchain {
             receiver_account_state.balance -= transaction.amount;
             miner_account_balance -= transaction.fee;
         }
+
         let miner_account = self
             .accounts
-            .get_mut(&convert_public_key_to_bytes(&miner_public_key))
+            .get_mut(miner_public_key)
             .unwrap();
         miner_account.balance = miner_account_balance - self.mining_reward;
         return true;
@@ -334,7 +350,7 @@ impl Blockchain {
         }
         let average_production_time =
             total_latest_blocks_production_time / (self.blocks_between_difficulty_adjustment - 1);
-        if average_production_time < self.target_duration_between_blocks * 95 / 100 {
+        if average_production_time < self.target_duration_between_blocks * 95 / 100 && self.difficulty < U256::MAX - difficulty_variation {
             self.difficulty += difficulty_variation;
         } else if average_production_time > self.target_duration_between_blocks * 105 / 100 {
             self.difficulty -= difficulty_variation;
