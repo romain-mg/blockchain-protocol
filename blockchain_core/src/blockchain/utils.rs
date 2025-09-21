@@ -1,5 +1,5 @@
 pub use super::block::Transaction;
-use k256::{PublicKey, ecdsa::VerifyingKey};
+use k256::{PublicKey};
 use sha256::digest;
 use k256::elliptic_curve::sec1::ToEncodedPoint; 
 

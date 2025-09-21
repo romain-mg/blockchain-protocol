@@ -1,10 +1,12 @@
 use anyhow::Result;
-use blockchain_core::{SERVER_ADDR, log, rpc::client_to_node::*};
+use blockchain_core::{log, rpc::client_to_node::*};
+use std::env;
 use tonic::transport::Channel;
 
 async fn connect() -> Result<client_to_node_client::ClientToNodeClient<Channel>> {
+    let server_addr = env::var("SERVER_ADDR").expect("server address not found");
     Ok(
-        client_to_node_client::ClientToNodeClient::connect(format!("http://{}", SERVER_ADDR))
+        client_to_node_client::ClientToNodeClient::connect(format!("http://{}", server_addr))
             .await?,
     )
 }

@@ -15,7 +15,7 @@ use uint::FromStrRadixErr;
 use utils::convert_public_key_to_bytes;
 use k256::elliptic_curve::sec1::ToEncodedPoint; 
 use serde::{Serialize, Deserialize};
-
+use serde_json_any_key::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Blockchain {
@@ -29,6 +29,7 @@ pub struct Blockchain {
     pub target_duration_between_blocks: u64,
     pub latest_block_timestamp: u64,
     pub max_transactions_per_block: usize,
+    #[serde(with = "any_key_map")]
     pub accounts: HashMap<Vec<u8>, AccountState>,
     pub mining_reward: U256,
     pub current_longest_chain_latest_block_hash: String,
@@ -79,6 +80,11 @@ impl Blockchain {
     }
 
     pub fn add_block(&mut self, mut block: Block, miner_public_key: PublicKey) -> bool {
+        // create account for miner of needed
+        if self.get_account(&miner_public_key).is_none() {
+            self.create_account(&miner_public_key);
+        }
+
         let block_merkle_root = &block.header.merkle_root;
         let deserialized_transactions = block.get_deseralized_transactions();
         let recomputed_merkle_root = &MerkleTree::build_tree(&deserialized_transactions)
@@ -344,7 +350,7 @@ impl Blockchain {
         }
         let average_production_time =
             total_latest_blocks_production_time / (self.blocks_between_difficulty_adjustment - 1);
-        if average_production_time < self.target_duration_between_blocks * 95 / 100 {
+        if average_production_time < self.target_duration_between_blocks * 95 / 100 && self.difficulty < U256::MAX - difficulty_variation {
             self.difficulty += difficulty_variation;
         } else if average_production_time > self.target_duration_between_blocks * 105 / 100 {
             self.difficulty -= difficulty_variation;

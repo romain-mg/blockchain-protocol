@@ -4,38 +4,64 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-    
+
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'blockchain'",
+            "name": "Debug executable 'node' in bootnode mode",
             "cargo": {
                 "args": [
-                    "build",
-                    "--bin=blockchain",
-                    "--package=blockchain"
+                    "run",
+                    "--bin=node",
+                    "--package=node"
                 ],
                 "filter": {
-                    "name": "blockchain",
+                    "name": "node",
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": [
+        "--bootnode",
+        "true",
+    ],
             "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'blockchain'",
+            "name": "Debug executable 'node' in sync mode",
+            "cargo": {
+                "args": [
+                    "run",
+                    "--bin=node",
+                    "--package=node"
+                ],
+                "filter": {
+                    "name": "node",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+        "--sync",
+        "true",
+        "---peer",
+         "/ip_address/bootnode_id",
+    ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'node'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=blockchain",
-                    "--package=blockchain"
+                    "--bin=node",
+                    "--package=node"
                 ],
                 "filter": {
-                    "name": "blockchain",
+                    "name": "node",
                     "kind": "bin"
                 }
             },
