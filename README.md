@@ -1,7 +1,7 @@
 ### blockchain-protocol
 
 A Rust workspace featuring:
-- A fully-featured in-memory Proof-of-Work blockchain (miners are in-memory data structures) with mempool, transaction validation, block production, dynamic difficulty, and chain reorg to the longest chain by cumulative difficulty.
+- A fully-featured in-memory Proof-of-Work blockchain with mempool, transaction validation, block production, dynamic difficulty, and chain reorg to the longest chain by cumulative difficulty.
 - A libp2p-based P2P node where a bootnode can continuously produce blocks and peers can sync and download the entire blockchain.
 
 ### Repository layout
@@ -14,13 +14,10 @@ A Rust workspace featuring:
   - `src/blockchain.rs`: `Blockchain` data structure, state transition rules, cumulative difficulty, reorg logic, difficulty adjustment.
   - `src/miner.rs`: `Miner` with mempool, transaction validation, PoW block production, and simulated peer propagation.
   - `src/mock/`: `mock_network.rs`, `mock_miner.rs` for in-memory network simulation in tests/examples.
-  - `src/rpc/`: Generated gRPC types (used by the simple `client` crate example).
   - `src/lib.rs`: Test suite covering block mining, chain reorg, simulated propagation, and multithreading.
 - `node/`
   - `src/p2p_node.rs`: libp2p swarm (Kademlia + request/response CBOR protocol) for blockchain sync.
   - `src/main.rs`: CLI, bootnode mining loop, inbound sync request handling, dialing/syncing.
-  - `src/client_to_node_server.rs`: Example gRPC server stub (not required for P2P sync).
-- `client/`: Minimal CLI that calls the example gRPC method (separate from the P2P sync path).
 
 ### Features
 
@@ -111,20 +108,6 @@ This path avoids needing `BOOTSTRAP_NODE_KEYS`; you just align the constants wit
 - `--listen-address <Multiaddr>`: Listening address (ignored when `--bootnode true`, which uses `BOOTNODE_MULTIADDR` constant).
 - `--peer <Multiaddr>`: Optional extra peer to dial. The sync path still uses `BOOTNODE_ID/BOOTNODE_MULTIADDR` for the actual sync request.
 
-### Tuning parameters
-
-Set in `node/src/main.rs` (demo defaults):
-- `TARGET_DURATION_BETWEEN_BLOCKS: u64 = 1`
-- `MAX_TRANSACTIONS_PER_BLOCK: usize = 3`
-- `BLOCKS_BETWEEN_DIFFICULTY_ADJUSTMENT: u64 = 10`
-
-Set in `blockchain_core/src/blockchain.rs`:
-- Block reward, difficulty maps, reorg logic.
-
-### Notes and limitations
-
-- Sync sends the entire blockchain as a JSON blob; acceptable for demos, not production.
-- Mining is paused during sync to reduce contention; a real system would snapshot or stream.
 
 ### Getting started quickly
 

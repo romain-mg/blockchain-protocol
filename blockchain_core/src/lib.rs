@@ -2,7 +2,6 @@ pub mod blockchain;
 pub mod log;
 pub mod miner;
 pub mod mock;
-pub mod rpc;
 
 #[cfg(test)]
 mod tests {

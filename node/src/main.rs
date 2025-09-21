@@ -1,4 +1,3 @@
-mod client_to_node_server;
 mod p2p_node;
 use anyhow::Result;
 use blockchain_core::{blockchain::{Blockchain}, miner::Miner, log};
