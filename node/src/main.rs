@@ -3,7 +3,7 @@ use anyhow::Result;
 use blockchain_core::{blockchain::{Blockchain}, miner::Miner, log};
 use clap::Parser;
 use futures::StreamExt;
-use libp2p::{core::Multiaddr, multiaddr::Protocol};
+use libp2p::{core::Multiaddr, PeerId};
 use primitive_types::U256;
 use tokio::task::{spawn};
 use tracing_subscriber::EnvFilter;
@@ -13,9 +13,6 @@ use serde_json;
 const TARGET_DURATION_BETWEEN_BLOCKS: u64 = 1;
 const MAX_TRANSACTIONS_PER_BLOCK: usize = 3;
 const BLOCKS_BETWEEN_DIFFICULTY_ADJUSTMENT: u64 = 10;
-const BOOTNODE_ID: &str = "bootnode_id";
-const BOOTNODE_MULTIADDR: &str =
-    "/ip_address/bootnode_id";
 
 
 #[tokio::main]
@@ -32,33 +29,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Spawn the network task for it to run in the background.
     spawn(node_event_loop.run());
 
-    // In case we want to spin up a bootnode, use the bootnode address. Otherwise, if an address
-    // was provided, use it. Else, listen on any address.
-    if let Some(true) = opt.bootnode {
-            node_client
-                .start_listening(BOOTNODE_MULTIADDR.parse()?)
-                .await
-                .expect("Listening not to fail.");
-    } else {
-        match opt.listen_address {
-            Some(addr) => node_client
-                .start_listening(addr)
-                .await
-                .expect("Listening not to fail."),
-            None => node_client
-                .start_listening("/ip4/0.0.0.0/tcp/0".parse()?)
-                .await
-                .expect("Listening not to fail."),
-        };
-    }
+    match opt.listen_address {
+        Some(addr) => node_client
+            .start_listening(addr)
+            .await
+            .expect("Listening not to fail."),
+        None => node_client
+            .start_listening("/ip4/0.0.0.0/tcp/0".parse()?)
+            .await
+            .expect("Listening not to fail."),
+}
     
     // In case the user wants to sync, dial with the bootnode
     if let Some(true) = opt.sync {
+        let bootnode_id = opt.bootnode_id.expect("User to provide a bootnode_id");
+        let bootnode_address = opt.bootnode_address.expect("User to provide a bootnode_address");
         node_client
-            .dial(BOOTNODE_ID.parse()?, BOOTNODE_MULTIADDR.parse()?)
+            .dial(bootnode_id, bootnode_address.clone())
             .await
             .expect("Dial to succeed");
-        log::info!("Dialed with bootnode at {:?}", BOOTNODE_MULTIADDR);
+        log::info!("Dialed with bootnode at {:?}", bootnode_address);
     }
 
 
@@ -85,7 +75,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let mut locked_miner_chain = miner_chain_reference.lock().expect("Write lock to be acquired");
                 log::info!("Lock acquired by miner");
                 hash = miner.compute_next_block(&mut *locked_miner_chain, hash).expect("Next block to be computed");
-                log::info!("Next block computed, going to next loop iter");
+                log::info!("Block computed with hash {:?}", hash);
                 }
                 else {
                     log::info!("Cannot mine anymore, not acquiring lock and yielding");
@@ -114,9 +104,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     } else if let Some(true) = opt.sync {
+        let bootnode_id = opt.bootnode_id.expect("User to provide a bootnode_id");
         log::info!("Requesting blockchain from bootnode");
         // request blockchain to boot node
-        let serialized_chain = node_client.request_blockchain_sync(BOOTNODE_ID.parse()?).await;
+        let serialized_chain = node_client.request_blockchain_sync(bootnode_id).await;
         match serialized_chain {
             Ok(chain) => {
                 let blockchain: Blockchain = serde_json::from_slice(&chain).expect("Blockchain to be deserialized");
@@ -131,9 +122,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "Blockchain simulation")]
+#[command(name = "In-memory Blockchain")]
 struct Opt {
-    /// Fixed value to generate deterministic peer ID.
     #[arg(long)]
     secret_key_seed: Option<u8>,
 
@@ -148,4 +138,10 @@ struct Opt {
 
     #[arg(long)]
     sync: Option<bool>,
+
+    #[arg(long)]
+    bootnode_address: Option<Multiaddr>,
+
+    #[arg(long)]
+    bootnode_id: Option<PeerId>,
 }

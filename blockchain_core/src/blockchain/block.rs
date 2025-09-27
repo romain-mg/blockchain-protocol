@@ -120,12 +120,12 @@ pub struct MerkleTree {
 impl MerkleTree {
     pub fn build_tree(transactions: &Vec<Transaction>) -> Self {
         if transactions.is_empty() {
-            let defaultRoot = MerkleNode {
+            let default_root = MerkleNode {
                 left: None,
                 right: None,
                 value: String::from("")
             };
-            return Self { root: Some(Box::new(defaultRoot)) };
+            return Self { root: Some(Box::new(default_root)) };
         }
         let mut nodes: Vec<MerkleNode> = transactions
             .iter()

@@ -1,4 +1,4 @@
-## blockchain-protocol
+## Blockchain Protocol
 
 A Rust workspace featuring:
 - A fully-featured in-memory Proof-of-Work blockchain with mempool, transaction validation, block production, dynamic difficulty, and chain reorg to the longest chain by cumulative difficulty.
@@ -22,7 +22,7 @@ A Rust workspace featuring:
 ### Features
 
 - **PoW blockchain core**
-  - Accounts with balances and nonces (`U256`), keyed by compressed ECDSA secp256k1 public keys (`k256`).
+  - Accounts with balances and nonces, keyed by compressed ECDSA secp256k1 public keys.
   - Transactions signed with ECDSA; mempool prioritized by fee, filtered by nonce/balance validity.
   - Blocks contain serialized transactions and a Merkle root; block hash includes nonce/timestamp/prev/merkle.
   - PoW mining: iterate nonce and timestamp until `hash(header) <= difficulty`.
@@ -36,9 +36,9 @@ A Rust workspace featuring:
   - Mining is temporarily paused while serving a sync to avoid prolonged lock contention.
 
 
-### Run the tests (core)
+### Running the tests (core)
 
-- `cargo test -p blockchain_core`
+- `cargo test`
 
 Tests include:
 - Mining and account state updates.
@@ -52,19 +52,17 @@ There are two roles:
 - Bootnode: mines blocks and serves blockchain sync to peers.
 - Sync node: dials the bootnode and downloads the blockchain.
 
-
+g
 - Open two terminals.
 - Terminal 1 (bootnode):
-  - Edit `BOOTNODE_MULTIADDR` to a reachable IP/port (e.g., your LAN IP).
   - Run: `cargo run -p node -- --bootnode true --secret-key-seed 1`
+  - The multiaddress the bootnode is listening on will be logged in the console. Copy it.
 
 - Terminal 2 (sync node):
-  - `cargo run -p node -- --sync true`
-  - You should see the blockchain printed after sync completes.
-
-Optionally, set the `BOOTSTRAP_NODE_KEYS` environment variable to a base64-encoded libp2p keypair (protobuf-encoded). If the bootnode’s printed PeerId or address differs from the hardcoded values in `node/src/main.rs`, update:
-- `BOOTNODE_ID`: the bootnode’s PeerId.
-- `BOOTNODE_MULTIADDR`: the full listen `Multiaddr`, including `/p2p/<peer-id>`.
+  - `cargo run -p node -- --sync true --bootnode-id YOUR_ID --bootnode-address YOUR_MULTIADDRESS`
+  
+  The bootnode id is the multihash at the end of the  bootnode multiaddress.
+  - You will see the blockchain printed after sync completes.
 
 
 
@@ -72,6 +70,10 @@ Optionally, set the `BOOTSTRAP_NODE_KEYS` environment variable to a base64-encod
 
 - `--bootnode <bool>`: When true, starts in mining + serve mode.
 - `--sync <bool>`: When true, dials the bootnode and requests a chain sync.
-- `--secret-key-seed <u8>`: Deterministic keypair for stable PeerId (overrides env/bootnode key path).
-- `--listen-address <Multiaddr>`: Listening address (ignored when `--bootnode true`, which uses `BOOTNODE_MULTIADDR` constant).
+- `--secret-key-seed <u8>`: Deterministic keypair for stable PeerId.
+- `--bootnode-id <PeerId>`: Bootnode id, set only when syncing to a bootnode.
+- `--bootnode-address <Multiaddr>`: Bootnode address, set only when syncing to a bootnode.
+- `--listen-address <Multiaddr>`: Listening address, optional.
+
+
 
